@@ -58,7 +58,7 @@ export const InferencePipelineCard: React.FC<InferencePipeline> = (pipeline) => 
     <EuiButtonEmpty
       iconSide="right"
       flush="both"
-      iconType="boxesVertical"
+      iconType="boxesHorizontal"
       onClick={() => setIsPopOverOpen(!isPopOverOpen)}
     >
       <TrainedModelHealth
