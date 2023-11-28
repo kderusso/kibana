@@ -15,6 +15,7 @@ import {
   EuiConfirmModal,
   EuiFlexGroup,
   EuiFlexItem,
+  EuiIcon,
   EuiPanel,
   EuiPopover,
   EuiPopoverTitle,
@@ -70,97 +71,105 @@ export const InferencePipelineCard: React.FC<InferencePipeline> = (pipeline) => 
 
   return (
     <EuiPanel color="subdued">
-      <EuiFlexGroup direction="column" gutterSize="xs">
+      <EuiFlexGroup alignItems="center">
+        <EuiFlexItem grow={false}><EuiIcon type="check" /></EuiFlexItem>
         <EuiFlexItem>
-          <EuiFlexGroup alignItems="center">
+          <EuiFlexGroup direction="column" gutterSize="xs">
             <EuiFlexItem>
-              <EuiTitle size="xs">
-                <h4>{pipelineName ?? modelTitle}</h4>
-              </EuiTitle>
+              <EuiFlexGroup alignItems="center">
+                <EuiFlexItem>
+                  <EuiTitle size="xs">
+                    <h4>{pipelineName ?? modelTitle}</h4>
+                  </EuiTitle>
+                </EuiFlexItem>
+                <EuiFlexItem grow={false}>
+
+                </EuiFlexItem>
+              </EuiFlexGroup>
             </EuiFlexItem>
-            <EuiFlexItem grow={false}>
-              <EuiPopover
-                button={actionButton}
-                isOpen={isPopOverOpen}
-                closePopover={() => setIsPopOverOpen(false)}
-              >
-                <EuiFlexGroup direction="column" gutterSize="none">
-                  <EuiFlexItem>
-                    <div>
-                      <EuiButtonEmpty
-                        data-telemetry-id={`entSearchContent-${ingestionMethod}-pipelines-inferencePipeline-stackManagement`}
-                        size="s"
-                        flush="both"
-                        iconType="eye"
-                        color="text"
-                        href={http.basePath.prepend(
-                          `/app/management/ingest/ingest_pipelines/?pipeline=${pipelineName}`
-                        )}
-                      >
-                        {i18n.translate(
-                          'xpack.enterpriseSearch.inferencePipelineCard.action.view',
-                          { defaultMessage: 'View in Stack Management' }
-                        )}
-                      </EuiButtonEmpty>
-                    </div>
+            {modelTitle && (
+              <EuiFlexItem>
+                <EuiFlexGroup gutterSize="s">
+                  <EuiFlexItem grow={false}>
+                    <EuiTextColor color="subdued">{modelId}</EuiTextColor>
                   </EuiFlexItem>
-                  <EuiFlexItem>
-                    <div>
-                      <EuiButtonEmpty
-                        data-telemetry-id={`entSearchContent-${ingestionMethod}-pipelines-inferencePipeline-detachPipeline`}
-                        size="s"
-                        flush="both"
-                        iconType="unlink"
-                        color="text"
-                        onClick={() => {
-                          detachMlPipeline({ indexName, pipelineName });
-                          setIsPopOverOpen(false);
-                        }}
-                      >
-                        {i18n.translate(
-                          'xpack.enterpriseSearch.inferencePipelineCard.action.detach',
-                          { defaultMessage: 'Detach pipeline' }
-                        )}
-                      </EuiButtonEmpty>
-                    </div>
-                  </EuiFlexItem>
-                  <EuiFlexItem>
-                    <div>
-                      <DeleteInferencePipelineButton
-                        data-telemetry-id={`entSearchContent-${ingestionMethod}-pipelines-inferencePipeline-deletePipeline`}
-                        onClick={showConfirmDeleteModal}
-                        pipeline={pipeline}
-                      />
-                    </div>
-                  </EuiFlexItem>
-                </EuiFlexGroup>
-              </EuiPopover>
-            </EuiFlexItem>
-          </EuiFlexGroup>
-        </EuiFlexItem>
-        <EuiFlexItem>
-          <EuiFlexGroup>
-            <EuiFlexItem>
-              <EuiFlexGroup gutterSize="xs" alignItems="center" justifyContent="flexEnd">
-                {modelTitle && (
                   <EuiFlexItem>
                     <span>
-                      <EuiTextColor color="subdued">{modelId}</EuiTextColor>
                       <MLModelTypeBadge type={modelType} />
                     </span>
                   </EuiFlexItem>
-                )}
-
-              </EuiFlexGroup>
+                </EuiFlexGroup>
+              </EuiFlexItem>
+            )}
+            <EuiFlexItem>
               <EuiFlexGroup gutterSize="xs">
-                    <EuiFlexItem>
-                     <EuiTextColor color="subdued">TODO sortSourceFields</EuiTextColor>
-                    </EuiFlexItem>
-                  </EuiFlexGroup>
+                <EuiFlexItem>
+                  <EuiTextColor color="subdued">TODO sortSourceFields</EuiTextColor>
+                </EuiFlexItem>
+              </EuiFlexGroup>
             </EuiFlexItem>
           </EuiFlexGroup>
         </EuiFlexItem>
+        <EuiFlexItem grow={false}>
+          <EuiPopover
+            button={actionButton}
+            isOpen={isPopOverOpen}
+            closePopover={() => setIsPopOverOpen(false)}
+          >
+            <EuiFlexGroup direction="column" gutterSize="none">
+              <EuiFlexItem>
+                <div>
+                  <EuiButtonEmpty
+                    data-telemetry-id={`entSearchContent-${ingestionMethod}-pipelines-inferencePipeline-stackManagement`}
+                    size="s"
+                    flush="both"
+                    iconType="eye"
+                    color="text"
+                    href={http.basePath.prepend(
+                      `/app/management/ingest/ingest_pipelines/?pipeline=${pipelineName}`
+                    )}
+                  >
+                    {i18n.translate(
+                      'xpack.enterpriseSearch.inferencePipelineCard.action.view',
+                      { defaultMessage: 'View in Stack Management' }
+                    )}
+                  </EuiButtonEmpty>
+                </div>
+              </EuiFlexItem>
+              <EuiFlexItem>
+                <div>
+                  <EuiButtonEmpty
+                    data-telemetry-id={`entSearchContent-${ingestionMethod}-pipelines-inferencePipeline-detachPipeline`}
+                    size="s"
+                    flush="both"
+                    iconType="unlink"
+                    color="text"
+                    onClick={() => {
+                      detachMlPipeline({ indexName, pipelineName });
+                      setIsPopOverOpen(false);
+                    }}
+                  >
+                    {i18n.translate(
+                      'xpack.enterpriseSearch.inferencePipelineCard.action.detach',
+                      { defaultMessage: 'Detach pipeline' }
+                    )}
+                  </EuiButtonEmpty>
+                </div>
+              </EuiFlexItem>
+              <EuiFlexItem>
+                <div>
+                  <DeleteInferencePipelineButton
+                    data-telemetry-id={`entSearchContent-${ingestionMethod}-pipelines-inferencePipeline-deletePipeline`}
+                    onClick={showConfirmDeleteModal}
+                    pipeline={pipeline}
+                  />
+                </div>
+              </EuiFlexItem>
+            </EuiFlexGroup>
+          </EuiPopover>
+        </EuiFlexItem>
       </EuiFlexGroup>
+
       {showConfirmDelete && (
         <EuiConfirmModal
           onCancel={() => setShowConfirmDelete(false)}
