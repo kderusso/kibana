@@ -154,7 +154,7 @@ export const InferencePipelineCard: React.FC<InferencePipeline> = (pipeline) => 
               </EuiFlexGroup>
               <EuiFlexGroup gutterSize="xs">
                     <EuiFlexItem>
-                     <EuiTextColor color="subdued">TODO sortSourceFields {sortSourceFields}</EuiTextColor>
+                     <EuiTextColor color="subdued">TODO sortSourceFields</EuiTextColor>
                     </EuiFlexItem>
                   </EuiFlexGroup>
             </EuiFlexItem>
