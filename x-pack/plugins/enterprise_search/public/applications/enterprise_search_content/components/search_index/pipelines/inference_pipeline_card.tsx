@@ -51,7 +51,7 @@ export const InferencePipelineCard: React.FC<InferencePipeline> = (pipeline) => 
     setShowConfirmDelete(true);
     setIsPopOverOpen(false);
   };
-  const { pipelineName, types: modelTypes } = pipeline;
+  const { modelId, pipelineName, types: modelTypes } = pipeline;
   const modelType = getMLType(modelTypes);
   const modelTitle = getModelDisplayTitle(modelType);
   const actionButton = (
@@ -61,9 +61,10 @@ export const InferencePipelineCard: React.FC<InferencePipeline> = (pipeline) => 
       iconType="boxesVertical"
       onClick={() => setIsPopOverOpen(!isPopOverOpen)}
     >
-      {i18n.translate('xpack.enterpriseSearch.inferencePipelineCard.actionButton', {
-        defaultMessage: 'Actions',
-      })}
+      <TrainedModelHealth
+        modelState={pipeline.modelState}
+        modelStateReason={pipeline.modelStateReason}
+      />
     </EuiButtonEmpty>
   );
 
@@ -74,7 +75,7 @@ export const InferencePipelineCard: React.FC<InferencePipeline> = (pipeline) => 
           <EuiFlexGroup alignItems="center">
             <EuiFlexItem>
               <EuiTitle size="xs">
-                <h4>{modelTitle ?? pipelineName}</h4>
+                <h4>{pipelineName ?? modelTitle}</h4>
               </EuiTitle>
             </EuiFlexItem>
             <EuiFlexItem grow={false}>
@@ -83,11 +84,6 @@ export const InferencePipelineCard: React.FC<InferencePipeline> = (pipeline) => 
                 isOpen={isPopOverOpen}
                 closePopover={() => setIsPopOverOpen(false)}
               >
-                <EuiPopoverTitle paddingSize="m">
-                  {i18n.translate('xpack.enterpriseSearch.inferencePipelineCard.action.title', {
-                    defaultMessage: 'Actions',
-                  })}
-                </EuiPopoverTitle>
                 <EuiFlexGroup direction="column" gutterSize="none">
                   <EuiFlexItem>
                     <div>
@@ -145,53 +141,22 @@ export const InferencePipelineCard: React.FC<InferencePipeline> = (pipeline) => 
         <EuiFlexItem>
           <EuiFlexGroup>
             <EuiFlexItem>
-              <EuiFlexGroup gutterSize="s" alignItems="center" justifyContent="flexEnd">
+              <EuiFlexGroup gutterSize="xs" alignItems="center" justifyContent="flexEnd">
                 {modelTitle && (
                   <EuiFlexItem>
-                    <EuiTextColor color="subdued">{pipelineName}</EuiTextColor>
+                    <span>
+                      <EuiTextColor color="subdued">{modelId}</EuiTextColor>
+                      <MLModelTypeBadge type={modelType} />
+                    </span>
                   </EuiFlexItem>
                 )}
-                <EuiFlexItem grow={false}>
-                  <TrainedModelHealth
-                    modelState={pipeline.modelState}
-                    modelStateReason={pipeline.modelStateReason}
-                  />
-                </EuiFlexItem>
-                {pipeline.modelState === TrainedModelState.NotDeployed && (
-                  <EuiFlexItem grow={false} style={{ paddingRight: '1rem' }}>
-                    <EuiToolTip
-                      position="top"
-                      content={i18n.translate(
-                        'xpack.enterpriseSearch.inferencePipelineCard.modelState.notDeployed.fixLink',
-                        { defaultMessage: 'Fix issue in Trained Models' }
-                      )}
-                    >
-                      <EuiButtonIcon
-                        aria-label={i18n.translate(
-                          'xpack.enterpriseSearch.inferencePipelineCard.modelState.notDeployed.fixLink',
-                          {
-                            defaultMessage: 'Fix issue in Trained Models',
-                          }
-                        )}
-                        data-telemetry-id={`entSearchContent-${ingestionMethod}-pipelines-inferencePipeline-fixIssueInTrainedModels`}
-                        href={http.basePath.prepend(ML_MANAGE_TRAINED_MODELS_PATH)}
-                        display="base"
-                        size="xs"
-                        iconType="wrench"
-                      />
-                    </EuiToolTip>
-                  </EuiFlexItem>
-                )}
-                <EuiFlexItem grow={false}>
-                  <EuiFlexGroup gutterSize="xs">
+
+              </EuiFlexGroup>
+              <EuiFlexGroup gutterSize="xs">
                     <EuiFlexItem>
-                      <span>
-                        <MLModelTypeBadge type={modelType} />
-                      </span>
+                     <EuiTextColor color="subdued">TODO sortSourceFields {sortSourceFields}</EuiTextColor>
                     </EuiFlexItem>
                   </EuiFlexGroup>
-                </EuiFlexItem>
-              </EuiFlexGroup>
             </EuiFlexItem>
           </EuiFlexGroup>
         </EuiFlexItem>
