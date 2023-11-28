@@ -21,6 +21,11 @@ import {
   InferencePipelineData,
 } from './get_ml_inference_pipeline_processors';
 
+/**
+ * TODO - Mock a pipeline that looks like ELSER and has multiple inference processors attached to it, and verify that it is populated correctly.
+ * test should show that we can pull source fields from multiple processors.
+ */
+
 const mockGetPipeline = {
   'my-index@ml-inference': {
     id: 'my-index@ml-inference',

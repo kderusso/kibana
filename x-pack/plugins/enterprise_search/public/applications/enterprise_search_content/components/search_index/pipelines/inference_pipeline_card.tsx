@@ -52,7 +52,7 @@ export const InferencePipelineCard: React.FC<InferencePipeline> = (pipeline) => 
     setShowConfirmDelete(true);
     setIsPopOverOpen(false);
   };
-  const { modelId, pipelineName, types: modelTypes } = pipeline;
+  const { modelId, pipelineName, sourceFields, types: modelTypes } = pipeline;
   const modelType = getMLType(modelTypes);
   const modelTitle = getModelDisplayTitle(modelType);
   const actionButton = (
@@ -104,7 +104,7 @@ export const InferencePipelineCard: React.FC<InferencePipeline> = (pipeline) => 
             <EuiFlexItem>
               <EuiFlexGroup gutterSize="xs">
                 <EuiFlexItem>
-                  <EuiTextColor color="subdued">TODO sortSourceFields</EuiTextColor>
+                  <EuiTextColor color="subdued">{sourceFields}</EuiTextColor>
                 </EuiFlexItem>
               </EuiFlexGroup>
             </EuiFlexItem>

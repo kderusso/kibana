@@ -100,6 +100,7 @@ export const fetchPipelineProcessorInferenceData = async (
           pipelineReferences: pipelineProcessorsMap?.[pipelineProcessorName] ?? [],
           trainedModelName,
           types: [],
+          sourceFields: Object.keys(inferenceProcessor.inference?.field_map ?? {})
         });
 
       return pipelineProcessorData;
