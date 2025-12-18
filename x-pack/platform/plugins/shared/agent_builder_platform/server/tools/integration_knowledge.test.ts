@@ -13,6 +13,13 @@ import { ToolResultType } from '@kbn/onechat-common';
 import { platformCoreTools } from '@kbn/onechat-common';
 import { integrationKnowledgeTool } from './integration_knowledge';
 import type { AgentBuilderPlatformPluginStart, PluginStartDependencies } from '../types';
+import { agentBuilderPlatformTelemetry } from '../otel/instrumentation';
+
+jest.mock('../otel/instrumentation', () => ({
+  agentBuilderPlatformTelemetry: {
+    recordToolExecutionDuration: jest.fn(),
+  },
+}));
 
 describe('integrationKnowledgeTool', () => {
   let mockCoreSetup: CoreSetup<PluginStartDependencies, AgentBuilderPlatformPluginStart>;
@@ -35,6 +42,7 @@ describe('integrationKnowledgeTool', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.spyOn(performance, 'now').mockReturnValue(1000);
 
     mockCoreSetup = coreMock.createSetup() as unknown as CoreSetup<
       PluginStartDependencies,
@@ -43,6 +51,10 @@ describe('integrationKnowledgeTool', () => {
     mockSearch = jest.fn();
     mockLogger = loggingSystemMock.createLogger();
     mockRequest = httpServerMock.createKibanaRequest();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   describe('tool definition', () => {
@@ -114,11 +126,23 @@ describe('integrationKnowledgeTool', () => {
       };
 
       mockSearch.mockResolvedValue(mockSearchResponse);
+      jest.spyOn(performance, 'now').mockReturnValueOnce(1000).mockReturnValueOnce(1500);
 
       const tool = integrationKnowledgeTool(mockCoreSetup);
       const result = await tool.handler(
         { query: 'How to configure nginx?', max: 5 },
         createHandlerContext() as any
+      );
+
+      // Verify telemetry was recorded with success outcome
+      expect(agentBuilderPlatformTelemetry.recordToolExecutionDuration).toHaveBeenCalledTimes(1);
+      expect(agentBuilderPlatformTelemetry.recordToolExecutionDuration).toHaveBeenCalledWith(
+        500, // 1500 - 1000
+        {
+          toolId: platformCoreTools.integrationKnowledge,
+          toolName: 'Integration Knowledge',
+          outcome: 'success',
+        }
       );
 
       expect(mockSearch).toHaveBeenCalledWith({
@@ -286,6 +310,7 @@ describe('integrationKnowledgeTool', () => {
 
     it('returns error result when search fails', async () => {
       mockSearch.mockRejectedValue(new Error('Elasticsearch connection failed'));
+      jest.spyOn(performance, 'now').mockReturnValueOnce(1000).mockReturnValueOnce(1200);
 
       const tool = integrationKnowledgeTool(mockCoreSetup);
       const result = await tool.handler(
@@ -303,6 +328,17 @@ describe('integrationKnowledgeTool', () => {
 
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.stringContaining('Error retrieving integration knowledge')
+      );
+
+      // Verify telemetry was recorded with failure outcome
+      expect(agentBuilderPlatformTelemetry.recordToolExecutionDuration).toHaveBeenCalledTimes(1);
+      expect(agentBuilderPlatformTelemetry.recordToolExecutionDuration).toHaveBeenCalledWith(
+        200, // 1200 - 1000
+        {
+          toolId: platformCoreTools.integrationKnowledge,
+          toolName: 'Integration Knowledge',
+          outcome: 'failure',
+        }
       );
     });
 
