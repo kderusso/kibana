@@ -54,36 +54,43 @@ The telemetry records:
 
 ### Instrumenting Token Timing
 
-For tools that use streaming model responses, track token timing:
+For tools that use streaming model responses, use the `createTokenTimingTracker` helper:
 
 ```typescript
-import { agentBuilderPlatformTelemetry } from '../otel/instrumentation';
+import { createTokenTimingTracker } from '../otel/token_timing';
 
-// In your tool handler when processing a stream:
-const requestStartTime = performance.now();
-let firstTokenTime: number | null = null;
-let lastTokenTime: number | null = null;
+// In your tool handler:
+const model = await modelProvider.getDefaultModel();
+const tokenTracker = createTokenTimingTracker(model);
 
-// When first token arrives:
-if (firstTokenTime === null) {
-  firstTokenTime = performance.now();
-  const duration = firstTokenTime - requestStartTime;
-  agentBuilderPlatformTelemetry.recordTimeToFirstToken(duration, {
-    model: model.id,
-    provider: model.provider,
-    outcome: 'success',
-  });
+// When processing a stream (e.g., using model.chatModel.stream):
+try {
+  const stream = model.chatModel.stream(prompt);
+  
+  for await (const chunk of stream) {
+    // Record first token when first chunk arrives
+    if (!tokenTracker.firstTokenTime && chunk?.content) {
+      tokenTracker.recordFirstToken();
+    }
+    
+    // Update last token time on each chunk
+    if (chunk?.content) {
+      tokenTracker.updateLastToken();
+    }
+    
+    // Process chunk...
+  }
+  
+  // Record last token when stream completes successfully
+  tokenTracker.recordLastToken('success');
+} catch (error) {
+  // Record last token on error
+  tokenTracker.recordLastToken('failure');
+  throw error;
 }
-
-// When stream completes:
-lastTokenTime = performance.now();
-const duration = lastTokenTime - requestStartTime;
-agentBuilderPlatformTelemetry.recordTimeToLastToken(duration, {
-  model: model.id,
-  provider: model.provider,
-  outcome: 'success', // or 'failure'
-});
 ```
+
+**Note:** Most tools use utility functions like `generateEsql()` and `runSearchTool()` which handle streaming internally. Token timing for these tools would need to be added at the utility function level. The tracker is available for tools that directly use `model.chatModel.stream()` or similar streaming APIs.
 
 ## Metrics
 
