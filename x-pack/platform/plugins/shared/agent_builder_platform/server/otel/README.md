@@ -13,10 +13,10 @@ The telemetry system records:
 
 ### Instrumenting Tool Execution
 
-Wrap your tool handler with `withToolTelemetry` to automatically record execution time:
+Call the telemetry methods directly in your tool handler, following the same pattern as the security plugin:
 
 ```typescript
-import { withToolTelemetry } from '../otel/utils';
+import { agentBuilderPlatformTelemetry } from '../otel/instrumentation';
 import { platformCoreTools } from '@kbn/onechat-common';
 
 export const myTool = (): BuiltinToolDefinition<typeof mySchema> => {
@@ -24,47 +24,65 @@ export const myTool = (): BuiltinToolDefinition<typeof mySchema> => {
     id: platformCoreTools.myTool,
     type: ToolType.builtin,
     schema: mySchema,
-    handler: withToolTelemetry(
-      platformCoreTools.myTool,
-      'My Tool Name',
-      async (params, context) => {
+    handler: async (params, context) => {
+      const startTime = performance.now();
+      let outcome: 'success' | 'failure' = 'success';
+
+      try {
         // Your tool implementation
         return { results: [...] };
+      } catch (error) {
+        outcome = 'failure';
+        throw error;
+      } finally {
+        const duration = performance.now() - startTime;
+        agentBuilderPlatformTelemetry.recordToolExecutionDuration(duration, {
+          toolId: platformCoreTools.myTool,
+          toolName: 'My Tool Name',
+          outcome,
+        });
       }
-    ),
+    },
   };
 };
 ```
 
-The telemetry will automatically record:
+The telemetry records:
 - Execution duration
 - Tool ID and name
 - Success/failure outcome
 
 ### Instrumenting Token Timing
 
-For tools that use streaming model responses, use `createTokenTimingTracker`:
+For tools that use streaming model responses, track token timing:
 
 ```typescript
-import { createTokenTimingTracker } from '../otel/utils';
+import { agentBuilderPlatformTelemetry } from '../otel/instrumentation';
 
-// In your tool handler:
-const model = await modelProvider.getDefaultModel();
-const tokenTracker = createTokenTimingTracker({
-  model: model.id,
-  provider: model.provider,
-});
+// In your tool handler when processing a stream:
+const requestStartTime = performance.now();
+let firstTokenTime: number | null = null;
+let lastTokenTime: number | null = null;
 
-// When processing a stream:
-for await (const chunk of stream) {
-  if (!tokenTracker.firstTokenTime) {
-    tokenTracker.recordFirstToken();
-  }
-  // Process chunk...
+// When first token arrives:
+if (firstTokenTime === null) {
+  firstTokenTime = performance.now();
+  const duration = firstTokenTime - requestStartTime;
+  agentBuilderPlatformTelemetry.recordTimeToFirstToken(duration, {
+    model: model.id,
+    provider: model.provider,
+    outcome: 'success',
+  });
 }
 
 // When stream completes:
-tokenTracker.recordLastToken('success'); // or 'failure'
+lastTokenTime = performance.now();
+const duration = lastTokenTime - requestStartTime;
+agentBuilderPlatformTelemetry.recordTimeToLastToken(duration, {
+  model: model.id,
+  provider: model.provider,
+  outcome: 'success', // or 'failure'
+});
 ```
 
 ## Metrics
