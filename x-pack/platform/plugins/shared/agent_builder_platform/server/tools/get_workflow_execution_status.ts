@@ -12,6 +12,7 @@ import type { BuiltinToolDefinition } from '@kbn/onechat-server';
 import { cleanPrompt } from '@kbn/onechat-genai-utils/prompts';
 import { getExecutionState } from '@kbn/onechat-genai-utils/tools/utils/workflows';
 import { errorResult, otherResult } from '@kbn/onechat-genai-utils/tools/utils/results';
+import { agentBuilderPlatformTelemetry } from '../otel/instrumentation';
 
 const getWorkflowExecutionStatusSchema = z.object({
   executionId: z
@@ -38,20 +39,35 @@ export const getWorkflowExecutionStatusTool = ({
     `),
     schema: getWorkflowExecutionStatusSchema,
     handler: async ({ executionId }, { spaceId }) => {
-      const execution = await getExecutionState({
-        executionId,
-        spaceId,
-        workflowApi,
-      });
+      const startTime = performance.now();
+      let outcome: 'success' | 'failure' = 'success';
 
-      if (execution) {
-        return {
-          results: [otherResult({ execution })],
-        };
-      } else {
-        return {
-          results: [errorResult(`Workflow execution with ID '${executionId}' not found.`)],
-        };
+      try {
+        const execution = await getExecutionState({
+          executionId,
+          spaceId,
+          workflowApi,
+        });
+
+        if (execution) {
+          return {
+            results: [otherResult({ execution })],
+          };
+        } else {
+          return {
+            results: [errorResult(`Workflow execution with ID '${executionId}' not found.`)],
+          };
+        }
+      } catch (error) {
+        outcome = 'failure';
+        throw error;
+      } finally {
+        const duration = performance.now() - startTime;
+        agentBuilderPlatformTelemetry.recordToolExecutionDuration(duration, {
+          toolId: platformCoreTools.getWorkflowExecutionStatus,
+          toolName: 'Get Workflow Execution Status',
+          outcome,
+        });
       }
     },
     tags: [],

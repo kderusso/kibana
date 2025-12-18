@@ -15,6 +15,7 @@ import type { CasesClient } from '@kbn/cases-plugin/server/client';
 import type { KibanaRequest } from '@kbn/core-http-server';
 import type { Logger } from '@kbn/logging';
 import type { AgentBuilderPlatformPluginStart, PluginStartDependencies } from '../../types';
+import { agentBuilderPlatformTelemetry } from '../../otel/instrumentation';
 import {
   normalizeTimeRange,
   createCommentSummariesFromArray,
@@ -289,6 +290,9 @@ Returns case details (id, title, description, status, severity, tags, assignees,
       },
       { request, logger }
     ) => {
+      const startTime = performance.now();
+      let outcome: 'success' | 'failure' = 'success';
+
       try {
         const [coreStart, pluginsStart] = await coreSetup.getStartServices();
         const coreServices: CoreServices = {
@@ -299,6 +303,7 @@ Returns case details (id, title, description, status, severity, tags, assignees,
         const timeRange = normalizeTimeRange(start, end, logger);
         const casesClientResult = await getCasesClient(pluginsStart, request, logger, timeRange);
         if ('error' in casesClientResult) {
+          outcome = 'failure';
           return casesClientResult.error;
         }
         const { casesClient } = casesClientResult;
@@ -382,12 +387,20 @@ Returns case details (id, title, description, status, severity, tags, assignees,
         );
         return createResult(casesData, timeRange);
       } catch (error) {
+        outcome = 'failure';
         return createErrorResponse(
           error,
           '[Cases Tool] Error in cases tool',
           'Error fetching cases',
           logger
         );
+      } finally {
+        const duration = performance.now() - startTime;
+        agentBuilderPlatformTelemetry.recordToolExecutionDuration(duration, {
+          toolId: platformCoreTools.cases,
+          toolName: 'Cases',
+          outcome,
+        });
       }
     },
     tags: ['cases'],

@@ -10,6 +10,7 @@ import { platformCoreTools, ToolType } from '@kbn/onechat-common';
 import { getIndexMappings } from '@kbn/onechat-genai-utils';
 import type { BuiltinToolDefinition } from '@kbn/onechat-server';
 import { ToolResultType } from '@kbn/onechat-common/tools/tool_result';
+import { agentBuilderPlatformTelemetry } from '../otel/instrumentation';
 
 const getIndexMappingsSchema = z.object({
   indices: z.array(z.string()).min(1).describe('List of indices to retrieve mappings for.'),
@@ -22,19 +23,34 @@ export const getIndexMappingsTool = (): BuiltinToolDefinition<typeof getIndexMap
     description: 'Retrieve mappings for the specified index or indices.',
     schema: getIndexMappingsSchema,
     handler: async ({ indices }, { esClient }) => {
-      const result = await getIndexMappings({ indices, esClient: esClient.asCurrentUser });
+      const startTime = performance.now();
+      let outcome: 'success' | 'failure' = 'success';
 
-      return {
-        results: [
-          {
-            type: ToolResultType.other,
-            data: {
-              mappings: result,
-              indices,
+      try {
+        const result = await getIndexMappings({ indices, esClient: esClient.asCurrentUser });
+
+        return {
+          results: [
+            {
+              type: ToolResultType.other,
+              data: {
+                mappings: result,
+                indices,
+              },
             },
-          },
-        ],
-      };
+          ],
+        };
+      } catch (error) {
+        outcome = 'failure';
+        throw error;
+      } finally {
+        const duration = performance.now() - startTime;
+        agentBuilderPlatformTelemetry.recordToolExecutionDuration(duration, {
+          toolId: platformCoreTools.getIndexMapping,
+          toolName: 'Get Index Mapping',
+          outcome,
+        });
+      }
     },
     tags: [],
   };

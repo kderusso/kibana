@@ -10,6 +10,7 @@ import { platformCoreTools, ToolType } from '@kbn/onechat-common';
 import type { BuiltinToolDefinition } from '@kbn/onechat-server';
 import { listSearchSources } from '@kbn/onechat-genai-utils';
 import { ToolResultType } from '@kbn/onechat-common/tools/tool_result';
+import { agentBuilderPlatformTelemetry } from '../otel/instrumentation';
 
 const listIndicesSchema = z.object({
   pattern: z
@@ -34,34 +35,49 @@ This parameter should only be used when you already know of a specific pattern t
 e.g. if the user provided one. Otherwise, do not try to invent or guess a pattern.`,
     schema: listIndicesSchema,
     handler: async ({ pattern }, { esClient, logger }) => {
-      logger.debug(`list indices tool called with pattern: ${pattern}`);
-      const {
-        indices,
-        data_streams: dataStreams,
-        aliases,
-        warnings,
-      } = await listSearchSources({
-        pattern,
-        includeHidden: false,
-        includeKibanaIndices: false,
-        excludeIndicesRepresentedAsAlias: false,
-        excludeIndicesRepresentedAsDatastream: true,
-        esClient: esClient.asCurrentUser,
-      });
+      const startTime = performance.now();
+      let outcome: 'success' | 'failure' = 'success';
 
-      return {
-        results: [
-          {
-            type: ToolResultType.other,
-            data: {
-              indices: indices.map((index) => ({ name: index.name })),
-              aliases: aliases.map((alias) => ({ name: alias.name, indices: alias.indices })),
-              data_streams: dataStreams.map((ds) => ({ name: ds.name, indices: ds.indices })),
-              warnings,
+      try {
+        logger.debug(`list indices tool called with pattern: ${pattern}`);
+        const {
+          indices,
+          data_streams: dataStreams,
+          aliases,
+          warnings,
+        } = await listSearchSources({
+          pattern,
+          includeHidden: false,
+          includeKibanaIndices: false,
+          excludeIndicesRepresentedAsAlias: false,
+          excludeIndicesRepresentedAsDatastream: true,
+          esClient: esClient.asCurrentUser,
+        });
+
+        return {
+          results: [
+            {
+              type: ToolResultType.other,
+              data: {
+                indices: indices.map((index) => ({ name: index.name })),
+                aliases: aliases.map((alias) => ({ name: alias.name, indices: alias.indices })),
+                data_streams: dataStreams.map((ds) => ({ name: ds.name, indices: ds.indices })),
+                warnings,
+              },
             },
-          },
-        ],
-      };
+          ],
+        };
+      } catch (error) {
+        outcome = 'failure';
+        throw error;
+      } finally {
+        const duration = performance.now() - startTime;
+        agentBuilderPlatformTelemetry.recordToolExecutionDuration(duration, {
+          toolId: platformCoreTools.listIndices,
+          toolName: 'List Indices',
+          outcome,
+        });
+      }
     },
     tags: [],
   };

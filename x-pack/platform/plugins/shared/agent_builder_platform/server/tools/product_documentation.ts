@@ -14,6 +14,7 @@ import { ToolResultType } from '@kbn/onechat-common';
 import type { CoreSetup } from '@kbn/core/server';
 import type { RetrieveDocumentationResultDoc } from '@kbn/llm-tasks-plugin/server';
 import type { AgentBuilderPlatformPluginStart, PluginStartDependencies } from '../types';
+import { agentBuilderPlatformTelemetry } from '../otel/instrumentation';
 
 const productDocumentationSchema = z.object({
   query: z
@@ -68,38 +69,42 @@ export const productDocumentationTool = (
     description: `Search and retrieve documentation about Elastic products (Kibana, Elasticsearch, Elastic Security, Elastic Observability).`,
     schema: productDocumentationSchema,
     handler: async ({ query, product, max = 3 }, { modelProvider, logger, request }) => {
-      const llmTasks = await getLlmTasks();
-      if (!llmTasks) {
-        return {
-          results: [
-            createErrorResult({
-              message:
-                'Product documentation tool is not available. LlmTasks plugin is not available.',
-            }),
-          ],
-        };
-      }
-
-      // Check if product documentation is installed
-      const isAvailable = await isProductDocAvailable(llmTasks);
-      if (!isAvailable) {
-        // Build the full settings URL using the request's base path (includes space prefix)
-        const basePath = coreSetup.http.basePath.get(request);
-        const settingsUrl = `${basePath}${GENAI_SETTINGS_APP_PATH}`;
-
-        return {
-          results: [
-            createErrorResult({
-              message: `Product documentation is not installed. To use this tool, please install Elastic documentation from the GenAI Settings page: ${settingsUrl}. Do not perform any other tool calls, and provide the user with a link to install the documentation.`,
-              metadata: {
-                settingsUrl,
-              },
-            }),
-          ],
-        };
-      }
+      const startTime = performance.now();
+      let outcome: 'success' | 'failure' = 'success';
 
       try {
+        const llmTasks = await getLlmTasks();
+        if (!llmTasks) {
+          outcome = 'failure';
+          return {
+            results: [
+              createErrorResult({
+                message:
+                  'Product documentation tool is not available. LlmTasks plugin is not available.',
+              }),
+            ],
+          };
+        }
+
+        // Check if product documentation is installed
+        const isAvailable = await isProductDocAvailable(llmTasks);
+        if (!isAvailable) {
+          // Build the full settings URL using the request's base path (includes space prefix)
+          const basePath = coreSetup.http.basePath.get(request);
+          const settingsUrl = `${basePath}${GENAI_SETTINGS_APP_PATH}`;
+
+          return {
+            results: [
+              createErrorResult({
+                message: `Product documentation is not installed. To use this tool, please install Elastic documentation from the GenAI Settings page: ${settingsUrl}. Do not perform any other tool calls, and provide the user with a link to install the documentation.`,
+                metadata: {
+                  settingsUrl,
+                },
+              }),
+            ],
+          };
+        }
+
         // Get the default model to extract the connector
         const model = await modelProvider.getDefaultModel();
         const connector = model.connector;
@@ -148,6 +153,7 @@ export const productDocumentationTool = (
           })),
         };
       } catch (error) {
+        outcome = 'failure';
         logger.error(`Error retrieving product documentation: ${error.message}`);
         return {
           results: [
@@ -156,6 +162,13 @@ export const productDocumentationTool = (
             }),
           ],
         };
+      } finally {
+        const duration = performance.now() - startTime;
+        agentBuilderPlatformTelemetry.recordToolExecutionDuration(duration, {
+          toolId: platformCoreTools.productDocumentation,
+          toolName: 'Product Documentation',
+          outcome,
+        });
       }
     },
     tags: [],

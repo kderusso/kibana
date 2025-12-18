@@ -10,6 +10,7 @@ import { platformCoreTools, ToolType } from '@kbn/onechat-common';
 import { indexExplorer } from '@kbn/onechat-genai-utils';
 import type { BuiltinToolDefinition } from '@kbn/onechat-server';
 import { ToolResultType } from '@kbn/onechat-common/tools/tool_result';
+import { agentBuilderPlatformTelemetry } from '../otel/instrumentation';
 
 const indexExplorerSchema = z.object({
   query: z
@@ -45,32 +46,47 @@ Tool result: [{ type: "index", name: '.alerts' }]
       { query: nlQuery, indexPattern = '*', limit = 1 },
       { esClient, modelProvider, logger }
     ) => {
-      logger.debug(
-        `Index explorer tool called with query: ${nlQuery}, indexPattern: ${indexPattern}, limit: ${limit}`
-      );
-      const model = await modelProvider.getDefaultModel();
-      const response = await indexExplorer({
-        nlQuery,
-        indexPattern,
-        limit,
-        esClient: esClient.asCurrentUser,
-        model,
-      });
+      const startTime = performance.now();
+      let outcome: 'success' | 'failure' = 'success';
 
-      return {
-        results: [
-          {
-            type: ToolResultType.other,
-            data: {
-              resources: response.resources.map((resource) => ({
-                type: resource.type,
-                name: resource.name,
-                reason: resource.reason,
-              })),
+      try {
+        logger.debug(
+          `Index explorer tool called with query: ${nlQuery}, indexPattern: ${indexPattern}, limit: ${limit}`
+        );
+        const model = await modelProvider.getDefaultModel();
+        const response = await indexExplorer({
+          nlQuery,
+          indexPattern,
+          limit,
+          esClient: esClient.asCurrentUser,
+          model,
+        });
+
+        return {
+          results: [
+            {
+              type: ToolResultType.other,
+              data: {
+                resources: response.resources.map((resource) => ({
+                  type: resource.type,
+                  name: resource.name,
+                  reason: resource.reason,
+                })),
+              },
             },
-          },
-        ],
-      };
+          ],
+        };
+      } catch (error) {
+        outcome = 'failure';
+        throw error;
+      } finally {
+        const duration = performance.now() - startTime;
+        agentBuilderPlatformTelemetry.recordToolExecutionDuration(duration, {
+          toolId: platformCoreTools.indexExplorer,
+          toolName: 'Index Explorer',
+          outcome,
+        });
+      }
     },
     tags: [],
   };

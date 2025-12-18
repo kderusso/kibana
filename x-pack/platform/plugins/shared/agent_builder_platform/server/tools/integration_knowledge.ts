@@ -12,6 +12,7 @@ import { createErrorResult } from '@kbn/onechat-server';
 import { ToolResultType } from '@kbn/onechat-common';
 import type { CoreSetup } from '@kbn/core/server';
 import type { AgentBuilderPlatformPluginStart, PluginStartDependencies } from '../types';
+import { agentBuilderPlatformTelemetry } from '../otel/instrumentation';
 
 const INTEGRATION_KNOWLEDGE_INDEX = '.integration_knowledge';
 const INTEGRATIONS_BASE_PATH = '/app/integrations/detail';
@@ -79,6 +80,9 @@ export const integrationKnowledgeTool = (
     description: `Search and retrieve knowledge from Fleet-installed integrations. This includes information on how to configure and use integrations for data ingestion into Elasticsearch.`,
     schema: integrationKnowledgeSchema,
     handler: async ({ query, max = 5 }, { esClient, logger }) => {
+      const startTime = performance.now();
+      let outcome: 'success' | 'failure' = 'success';
+
       try {
         // Search the .integration_knowledge index using semantic search on the content field
         // Use highlighting to retrieve only the relevant chunks instead of full document content
@@ -150,6 +154,7 @@ export const integrationKnowledgeTool = (
           }),
         };
       } catch (error) {
+        outcome = 'failure';
         logger.error(`Error retrieving integration knowledge: ${error.message}`);
         return {
           results: [
@@ -158,6 +163,13 @@ export const integrationKnowledgeTool = (
             }),
           ],
         };
+      } finally {
+        const duration = performance.now() - startTime;
+        agentBuilderPlatformTelemetry.recordToolExecutionDuration(duration, {
+          toolId: platformCoreTools.integrationKnowledge,
+          toolName: 'Integration Knowledge',
+          outcome,
+        });
       }
     },
     tags: ['integration', 'knowledge-base', 'fleet'],

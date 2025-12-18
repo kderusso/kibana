@@ -11,6 +11,7 @@ import { generateEsql } from '@kbn/onechat-genai-utils';
 import type { BuiltinToolDefinition } from '@kbn/onechat-server';
 import type { ToolHandlerResult } from '@kbn/onechat-server/tools';
 import { ToolResultType } from '@kbn/onechat-common/tools/tool_result';
+import { agentBuilderPlatformTelemetry } from '../otel/instrumentation';
 
 const nlToEsqlToolSchema = z.object({
   query: z.string().describe('A natural language query to generate an ES|QL query from.'),
@@ -36,49 +37,64 @@ export const generateEsqlTool = (): BuiltinToolDefinition<typeof nlToEsqlToolSch
       { query: nlQuery, index, context },
       { esClient, modelProvider, logger, events }
     ) => {
-      const model = await modelProvider.getDefaultModel();
+      const startTime = performance.now();
+      let outcome: 'success' | 'failure' = 'success';
 
-      const esqlResponse = await generateEsql({
-        nlQuery,
-        index,
-        additionalContext: context,
-        model,
-        esClient: esClient.asCurrentUser,
-        logger,
-        events,
-      });
+      try {
+        const model = await modelProvider.getDefaultModel();
 
-      const toolResults: ToolHandlerResult[] = [];
-
-      if (esqlResponse.error) {
-        toolResults.push({
-          type: ToolResultType.error,
-          data: {
-            message: esqlResponse.error,
-          },
+        const esqlResponse = await generateEsql({
+          nlQuery,
+          index,
+          additionalContext: context,
+          model,
+          esClient: esClient.asCurrentUser,
+          logger,
+          events,
         });
-      } else {
-        if (esqlResponse.query) {
-          toolResults.push({
-            type: ToolResultType.query,
-            data: {
-              esql: esqlResponse.query,
-            },
-          });
-        }
-        if (esqlResponse.answer) {
-          toolResults.push({
-            type: ToolResultType.other,
-            data: {
-              answer: esqlResponse.answer,
-            },
-          });
-        }
-      }
 
-      return {
-        results: toolResults,
-      };
+        const toolResults: ToolHandlerResult[] = [];
+
+        if (esqlResponse.error) {
+          toolResults.push({
+            type: ToolResultType.error,
+            data: {
+              message: esqlResponse.error,
+            },
+          });
+        } else {
+          if (esqlResponse.query) {
+            toolResults.push({
+              type: ToolResultType.query,
+              data: {
+                esql: esqlResponse.query,
+              },
+            });
+          }
+          if (esqlResponse.answer) {
+            toolResults.push({
+              type: ToolResultType.other,
+              data: {
+                answer: esqlResponse.answer,
+              },
+            });
+          }
+        }
+
+        return {
+          results: toolResults,
+        };
+      } catch (error) {
+        outcome = 'failure';
+        throw error;
+      } finally {
+        const duration = performance.now() - startTime;
+        agentBuilderPlatformTelemetry.recordToolExecutionDuration(duration, {
+          toolId: platformCoreTools.generateEsql,
+          toolName: 'Generate ES|QL',
+          outcome,
+        });
+      }
     },
     tags: [],
   };

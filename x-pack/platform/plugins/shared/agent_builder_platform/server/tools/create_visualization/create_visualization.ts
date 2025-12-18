@@ -10,6 +10,7 @@ import { platformCoreTools, ToolType } from '@kbn/onechat-common';
 import type { BuiltinToolDefinition } from '@kbn/onechat-server';
 import { ToolResultType, SupportedChartType } from '@kbn/onechat-common/tools/tool_result';
 import parse from 'joi-to-json';
+import { agentBuilderPlatformTelemetry } from '../../otel/instrumentation';
 
 import { esqlMetricState } from '@kbn/lens-embeddable-utils/config_builder/schema/charts/metric';
 import { gaugeStateSchemaESQL } from '@kbn/lens-embeddable-utils/config_builder/schema/charts/gauge';
@@ -83,6 +84,9 @@ This tool will:
       { query: nlQuery, chartType, esql, existingConfig },
       { esClient, modelProvider, logger, events }
     ) => {
+      const startTime = performance.now();
+      let outcome: 'success' | 'failure' = 'success';
+
       try {
         // Step 1: Determine chart type if not provided
         let selectedChartType: SupportedChartType = chartType || SupportedChartType.Metric;
@@ -134,6 +138,7 @@ This tool will:
         const { validatedConfig, error, currentAttempt, esqlQuery } = finalState;
 
         if (!validatedConfig) {
+          outcome = 'failure';
           throw new Error(
             `Failed to generate valid configuration after ${currentAttempt} attempts. Last error: ${
               error || 'Unknown error'
@@ -156,6 +161,7 @@ This tool will:
           ],
         };
       } catch (error) {
+        outcome = 'failure';
         logger.error(`Error in create_visualization tool: ${error.message}`);
         return {
           results: [
@@ -168,6 +174,13 @@ This tool will:
             },
           ],
         };
+      } finally {
+        const duration = performance.now() - startTime;
+        agentBuilderPlatformTelemetry.recordToolExecutionDuration(duration, {
+          toolId: platformCoreTools.createVisualization,
+          toolName: 'Create Visualization',
+          outcome,
+        });
       }
     },
   };

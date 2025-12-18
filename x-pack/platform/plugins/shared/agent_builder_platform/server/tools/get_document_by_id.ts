@@ -11,6 +11,7 @@ import { getDocumentById } from '@kbn/onechat-genai-utils';
 import type { BuiltinToolDefinition } from '@kbn/onechat-server';
 import { createErrorResult } from '@kbn/onechat-server';
 import { ToolResultType } from '@kbn/onechat-common/tools/tool_result';
+import { agentBuilderPlatformTelemetry } from '../otel/instrumentation';
 
 const getDocumentByIdSchema = z.object({
   id: z.string().describe('ID of the document to retrieve'),
@@ -25,37 +26,52 @@ export const getDocumentByIdTool = (): BuiltinToolDefinition<typeof getDocumentB
       'Retrieve the full content (source) of an Elasticsearch document based on its ID and index name.',
     schema: getDocumentByIdSchema,
     handler: async ({ id, index }, { esClient }) => {
-      const result = await getDocumentById({ id, index, esClient: esClient.asCurrentUser });
+      const startTime = performance.now();
+      let outcome: 'success' | 'failure' = 'success';
 
-      if (result.found) {
+      try {
+        const result = await getDocumentById({ id, index, esClient: esClient.asCurrentUser });
+
+        if (result.found) {
+          return {
+            results: [
+              {
+                type: ToolResultType.resource,
+                data: {
+                  reference: {
+                    id: result.id,
+                    index: result.index,
+                  },
+                  partial: false,
+                  content: result._source,
+                },
+              },
+            ],
+          };
+        }
+
         return {
           results: [
-            {
-              type: ToolResultType.resource,
-              data: {
-                reference: {
-                  id: result.id,
-                  index: result.index,
-                },
-                partial: false,
-                content: result._source,
+            createErrorResult({
+              message: `Document with ID '${result.id}' not found in index '${result.index}'`,
+              metadata: {
+                id: result.id,
+                index: result.index,
               },
-            },
+            }),
           ],
         };
+      } catch (error) {
+        outcome = 'failure';
+        throw error;
+      } finally {
+        const duration = performance.now() - startTime;
+        agentBuilderPlatformTelemetry.recordToolExecutionDuration(duration, {
+          toolId: platformCoreTools.getDocumentById,
+          toolName: 'Get Document By ID',
+          outcome,
+        });
       }
-
-      return {
-        results: [
-          createErrorResult({
-            message: `Document with ID '${result.id}' not found in index '${result.index}'`,
-            metadata: {
-              id: result.id,
-              index: result.index,
-            },
-          }),
-        ],
-      };
     },
     tags: [],
   };
