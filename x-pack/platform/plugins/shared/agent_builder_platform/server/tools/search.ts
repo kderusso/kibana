@@ -9,6 +9,7 @@ import { z } from '@kbn/zod';
 import { platformCoreTools, ToolType } from '@kbn/onechat-common';
 import { runSearchTool } from '@kbn/onechat-genai-utils/tools';
 import type { BuiltinToolDefinition } from '@kbn/onechat-server';
+import { withToolTelemetry } from '../otel/utils';
 
 const searchSchema = z.object({
   query: z.string().describe('A natural language query expressing the search request'),
@@ -44,21 +45,25 @@ Note:
  know about the index and fields you want to search on, e.g. if the user explicitly specified it.
     `,
     schema: searchSchema,
-    handler: async (
-      { query: nlQuery, index = '*' },
-      { esClient, modelProvider, logger, events }
-    ) => {
-      logger.debug(`search tool called with query: ${nlQuery}, index: ${index}`);
-      const results = await runSearchTool({
-        nlQuery,
-        index,
-        esClient: esClient.asCurrentUser,
-        model: await modelProvider.getDefaultModel(),
-        events,
-        logger,
-      });
-      return { results };
-    },
+    handler: withToolTelemetry(
+      platformCoreTools.search,
+      'Search',
+      async (
+        { query: nlQuery, index = '*' },
+        { esClient, modelProvider, logger, events }
+      ) => {
+        logger.debug(`search tool called with query: ${nlQuery}, index: ${index}`);
+        const results = await runSearchTool({
+          nlQuery,
+          index,
+          esClient: esClient.asCurrentUser,
+          model: await modelProvider.getDefaultModel(),
+          events,
+          logger,
+        });
+        return { results };
+      }
+    ),
     tags: [],
   };
 };

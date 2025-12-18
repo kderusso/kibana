@@ -11,6 +11,7 @@ import { executeEsql } from '@kbn/onechat-genai-utils/tools/utils/esql';
 import { ToolResultType } from '@kbn/onechat-common/tools/tool_result';
 import type { BuiltinToolDefinition } from '@kbn/onechat-server';
 import { getToolResultId } from '@kbn/onechat-server/tools';
+import { withToolTelemetry } from '../otel/utils';
 
 const executeEsqlToolSchema = z.object({
   query: z.string().describe('The ES|QL query to execute'),
@@ -32,30 +33,34 @@ You **must** get the query from one of two sources before calling this tool:
 Under no circumstances should you invent, guess, or modify a query yourself for this tool.
 If you need a query, use the \`${platformCoreTools.generateEsql}\` tool first.`,
     schema: executeEsqlToolSchema,
-    handler: async ({ query: esqlQuery }, { esClient }) => {
-      const result = await executeEsql({ query: esqlQuery, esClient: esClient.asCurrentUser });
+    handler: withToolTelemetry(
+      platformCoreTools.executeEsql,
+      'Execute ES|QL',
+      async ({ query: esqlQuery }, { esClient }) => {
+        const result = await executeEsql({ query: esqlQuery, esClient: esClient.asCurrentUser });
 
-      return {
-        results: [
-          {
-            type: ToolResultType.query,
-            data: {
-              esql: esqlQuery,
+        return {
+          results: [
+            {
+              type: ToolResultType.query,
+              data: {
+                esql: esqlQuery,
+              },
             },
-          },
-          {
-            tool_result_id: getToolResultId(),
-            type: ToolResultType.tabularData,
-            data: {
-              source: 'esql',
-              query: esqlQuery,
-              columns: result.columns,
-              values: result.values,
+            {
+              tool_result_id: getToolResultId(),
+              type: ToolResultType.tabularData,
+              data: {
+                source: 'esql',
+                query: esqlQuery,
+                columns: result.columns,
+                values: result.values,
+              },
             },
-          },
-        ],
-      };
-    },
+          ],
+        };
+      }
+    ),
     tags: [],
   };
 };
