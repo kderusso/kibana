@@ -39,14 +39,38 @@ export const performMatchSearch = async ({
   const allSearchableFields = [...textFields, ...semanticTextFields];
 
   // should replace `any` with `SearchRequest` type when the simplified retriever syntax is supported in @elastic/elasticsearch`
+  // const searchRequest: any = {
+  //   index,
+  //   size,
+  //   retriever: {
+  //     rrf: {
+  //       rank_window_size: size * 2,
+  //       query: term,
+  //       fields: allSearchableFields.map((field) => field.path),
+  //     },
+  //   },
+  //   highlight: {
+  //     number_of_fragments: 5,
+  //     fields: fields.reduce((memo, field) => ({ ...memo, [field.path]: {} }), {}),
+  //   },
+  // };
+
   const searchRequest: any = {
     index,
     size,
     retriever: {
-      rrf: {
+      text_similarity_reranker: {
+        retriever: {
+          rrf: {
+            rank_window_size: size * 2,
+            query: term,
+            fields: allSearchableFields.map((field) => field.path),
+          },
+        },
+        field: "contents",
+        inference_text: term,
         rank_window_size: size * 2,
-        query: term,
-        fields: allSearchableFields.map((field) => field.path),
+        inference_id: "jina-reranker-v2",
       },
     },
     highlight: {
