@@ -32,7 +32,9 @@ export const relevanceSearch = async ({
   const { fields } = await resolveResource({ resourceName: target, esClient });
 
   const selectedFields = fields.filter(
-    (field) => field.type === 'text' || field.type === 'semantic_text'
+    (field) =>
+      (field.type === 'text' || field.type === 'semantic_text') &&
+      !field.path.toLowerCase().includes('jina')
   );
 
   if (selectedFields.length === 0) {
