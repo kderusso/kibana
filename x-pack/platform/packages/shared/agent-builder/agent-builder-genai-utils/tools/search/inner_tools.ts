@@ -16,10 +16,10 @@ import type { ElasticsearchClient } from '@kbn/core-elasticsearch-server';
 import { getToolResultId, createErrorResult } from '@kbn/agent-builder-server/tools';
 import { relevanceSearch } from '../relevance_search';
 import { naturalLanguageSearch } from '../nl_search';
-import type { MatchResult } from '../steps/perform_match_search';
+import type { RelevanceSearchResult } from '../steps/perform_relevance_search';
 import { progressMessages } from './i18n';
 
-const convertMatchResult = (result: MatchResult): ResourceResult => {
+const convertMatchResult = (result: RelevanceSearchResult): ResourceResult => {
   return {
     tool_result_id: getToolResultId(),
     type: ToolResultType.resource,

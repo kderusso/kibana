@@ -9,14 +9,14 @@ import type { ElasticsearchClient } from '@kbn/core-elasticsearch-server';
 import type { Logger } from '@kbn/logging';
 import type { MappingField } from '../utils/mappings';
 
-export interface MatchResult {
+export interface RelevanceSearchResult {
   id: string;
   index: string;
   highlights: string[];
 }
 
 export interface PerformMatchSearchResponse {
-  results: MatchResult[];
+  results: RelevanceSearchResult[];
 }
 
 export const performMatchSearch = async ({
@@ -69,7 +69,7 @@ export const performMatchSearch = async ({
     throw error;
   }
 
-  const results = response.hits.hits.map<MatchResult>((hit) => {
+  const results = response.hits.hits.map<RelevanceSearchResult>((hit) => {
     return {
       id: hit._id!,
       index: hit._index!,

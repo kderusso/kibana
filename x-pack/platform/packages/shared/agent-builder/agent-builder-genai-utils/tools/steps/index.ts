@@ -9,8 +9,8 @@ export { getDocumentById, type GetDocumentByIdResult } from './get_documents';
 export {
   performMatchSearch,
   type PerformMatchSearchResponse,
-  type MatchResult,
-} from './perform_match_search';
+  type RelevanceSearchResult as MatchResult,
+} from './perform_relevance_search';
 export { listIndices, type ListIndexBasicInfo, type ListIndexDetailInfo } from './list_indices';
 export {
   listSearchSources,
