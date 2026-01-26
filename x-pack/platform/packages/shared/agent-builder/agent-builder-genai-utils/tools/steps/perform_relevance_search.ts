@@ -15,7 +15,7 @@ export interface RelevanceSearchResult {
   highlights: string[];
 }
 
-export interface PerformMatchSearchResponse {
+export interface PerformRelevanceSearchResponse {
   results: RelevanceSearchResult[];
 }
 
@@ -33,7 +33,7 @@ export const performMatchSearch = async ({
   size: number;
   esClient: ElasticsearchClient;
   logger: Logger;
-}): Promise<PerformMatchSearchResponse> => {
+}): Promise<PerformRelevanceSearchResponse> => {
   const textFields = fields.filter((field) => field.type === 'text');
   const semanticTextFields = fields.filter((field) => field.type === 'semantic_text');
   const allSearchableFields = [...textFields, ...semanticTextFields];
