@@ -7,9 +7,9 @@
 
 export { getDocumentById, type GetDocumentByIdResult } from './get_documents';
 export {
-  performMatchSearch,
-  type PerformRelevanceSearchResponse as PerformMatchSearchResponse,
-  type RelevanceSearchResult as MatchResult,
+  performRelevanceSearch,
+  type PerformRelevanceSearchResponse,
+  type RelevanceSearchResult,
 } from './perform_relevance_search';
 export { listIndices, type ListIndexBasicInfo, type ListIndexDetailInfo } from './list_indices';
 export {

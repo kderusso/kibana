@@ -8,11 +8,11 @@
 import type { ElasticsearchClient } from '@kbn/core-elasticsearch-server';
 import type { Logger } from '@kbn/logging';
 import type { ScopedModel } from '@kbn/agent-builder-server';
-import type { PerformMatchSearchResponse } from './steps';
-import { performMatchSearch } from './steps';
+import type { PerformRelevanceSearchResponse } from './steps';
+import { performRelevanceSearch } from './steps';
 import { resolveResource } from './utils/resources';
 
-export type RelevanceSearchResponse = PerformMatchSearchResponse;
+export type RelevanceSearchResponse = PerformRelevanceSearchResponse;
 
 export const relevanceSearch = async ({
   term,
@@ -39,7 +39,7 @@ export const relevanceSearch = async ({
     throw new Error('No text or semantic_text fields found, aborting search.');
   }
 
-  return performMatchSearch({
+  return performRelevanceSearch({
     term,
     index: target,
     fields: selectedFields,

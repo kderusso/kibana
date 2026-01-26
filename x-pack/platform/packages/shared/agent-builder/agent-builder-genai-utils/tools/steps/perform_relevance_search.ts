@@ -19,7 +19,7 @@ export interface PerformRelevanceSearchResponse {
   results: RelevanceSearchResult[];
 }
 
-export const performMatchSearch = async ({
+export const performRelevanceSearch = async ({
   term,
   fields,
   index,
