@@ -11,6 +11,7 @@ import type { MappingField } from '../utils/mappings';
 import TermsEnumApi from '@elastic/elasticsearch/lib/api/api/terms_enum';
 import { multiInject } from 'inversify';
 import { query } from '@kbn/esql-language/src/composer/synth';
+import { min } from 'lodash';
 
 export interface RelevanceSearchResult {
   id: string;
@@ -105,11 +106,11 @@ export const performRelevanceSearch = async ({
     retriever:
       retrievers.length > 1
         ? {
-            rrf: {
-              rank_window_size: size * 2,
-              retrievers,
-            },
-          }
+          rrf: {
+            rank_window_size: size * 2,
+            retrievers,
+          },
+        }
         : retrievers[0],
     highlight: {
       number_of_fragments: 5,
@@ -124,8 +125,7 @@ export const performRelevanceSearch = async ({
     response = await esClient.search<any>(searchRequest);
   } catch (error) {
     logger.debug(
-      `Elasticsearch search failed for index="${index}", term="${term}": ${
-        error instanceof Error ? error.message : String(error)
+      `Elasticsearch search failed for index="${index}", term="${term}": ${error instanceof Error ? error.message : String(error)
       }`
     );
     throw error;
