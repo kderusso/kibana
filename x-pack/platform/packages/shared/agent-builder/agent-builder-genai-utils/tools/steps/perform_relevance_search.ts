@@ -8,6 +8,9 @@
 import type { ElasticsearchClient } from '@kbn/core-elasticsearch-server';
 import type { Logger } from '@kbn/logging';
 import type { MappingField } from '../utils/mappings';
+import TermsEnumApi from '@elastic/elasticsearch/lib/api/api/terms_enum';
+import { multiInject } from 'inversify';
+import { query } from '@kbn/esql-language/src/composer/synth';
 
 export interface RelevanceSearchResult {
   id: string;
@@ -36,19 +39,78 @@ export const performRelevanceSearch = async ({
 }): Promise<PerformRelevanceSearchResponse> => {
   const textFields = fields.filter((field) => field.type === 'text');
   const semanticTextFields = fields.filter((field) => field.type === 'semantic_text');
-  const allSearchableFields = [...textFields, ...semanticTextFields];
 
-  // should replace `any` with `SearchRequest` type when the simplified retriever syntax is supported in @elastic/elasticsearch`
+  const retrievers: any[] = [];
+
+  if (textFields.length > 0) {
+    const textRetriever = {
+      standard: {
+        query: {
+          bool: {
+            must: [
+              { 
+                bool: {
+                 should: [
+                  {
+                    multi_match: {
+                      query: term,
+                      minimum_should_match: '1<-1 3<49%',
+                      type: 'cross_fields',
+                      fields: textFields.map((field) => field.path),
+                    }
+                  },
+                  {
+                    multi_match: {
+                      query: term,
+                      minimum_should_match: '1<-1 3<49%',
+                      type: 'best_fields',
+                      fuzziness: 'AUTO',
+                      prefix_length: 2,
+                      fields: textFields.map((field) => field.path),
+                    }
+                  },
+                  {
+                    multi_match: {
+                      query: term,
+                      type: 'phrase',
+                      slop: 3,
+                      fields: textFields.map((field) => field.path),
+                    }
+                  }
+                 ]
+                }
+              }
+            ]
+          }
+        },
+      },
+    };
+    retrievers.push(textRetriever);
+  }
+
+  if (semanticTextFields.length > 0) {
+    const semanticRetriever = {
+      rrf: {
+        fields: semanticTextFields.map((field) => field.path),
+        query: term,
+        rank_window_size: size * 2,
+      },
+    };
+    retrievers.push(semanticRetriever);
+  }
+
   const searchRequest: any = {
     index,
     size,
-    retriever: {
-      rrf: {
-        rank_window_size: size * 2,
-        query: term,
-        fields: allSearchableFields.map((field) => field.path),
-      },
-    },
+    retriever:
+      retrievers.length > 1
+        ? {
+            rrf: {
+              rank_window_size: size * 2,
+              retrievers,
+            },
+          }
+        : retrievers[0],
     highlight: {
       number_of_fragments: 5,
       fields: fields.reduce((memo, field) => ({ ...memo, [field.path]: {} }), {}),
@@ -73,7 +135,7 @@ export const performRelevanceSearch = async ({
     return {
       id: hit._id!,
       index: hit._index!,
-      highlights: Object.entries(hit.highlight ?? {}).reduce((acc, [field, highlights]) => {
+      highlights: Object.entries(hit.highlight ?? {}).reduce((acc, [_field, highlights]) => {
         acc.push(...highlights);
         return acc;
       }, [] as string[]),
