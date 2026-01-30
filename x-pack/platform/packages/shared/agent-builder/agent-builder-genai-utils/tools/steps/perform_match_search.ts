@@ -50,12 +50,12 @@ export const performMatchSearch = async ({
       },
     },
     highlight: {
-      number_of_fragments: 5,
+      number_of_fragments: 3,
       fragment_size: 500,
       pre_tags: [''],
       post_tags: [''],
       order: 'score',
-      fields: fields.reduce((memo, field) => ({ ...memo, [field.path]: {} }), {}),
+      fields: allSearchableFields.reduce((memo, field) => ({ ...memo, [field.path]: {} }), {}),
     },
   };
 
@@ -78,7 +78,7 @@ export const performMatchSearch = async ({
       id: hit._id!,
       index: hit._index!,
       highlights: Object.entries(hit.highlight ?? {}).reduce((acc, [field, highlights]) => {
-        acc.push(...highlights);
+        acc.push(...highlights.filter((h) => !acc.includes(h)));
         return acc;
       }, [] as string[]),
     };
