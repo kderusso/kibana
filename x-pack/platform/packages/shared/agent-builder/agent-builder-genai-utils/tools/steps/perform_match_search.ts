@@ -37,7 +37,7 @@ export const performMatchSearch = async ({
   logger: Logger;
 }): Promise<PerformMatchSearchResponse> => {
   // Quick and dirty toggle to demonstrate different combinations returning highlights, snippets, or both
-  const includeHighlights = true;
+  const includeHighlights = false;
   const includeSnippets = true;
 
   // should replace `any` with `SearchRequest` type when the simplified retriever syntax is supported in @elastic/elasticsearch`
@@ -96,46 +96,45 @@ export const performMatchSearch = async ({
       const snippets: string[] = [];
 
       if (includeSnippets) {
-        for (const field of fields) {
-          try {
-            const fieldName = field.path.includes(' ') ? `\`${field.path}\`` : field.path;
-            const indexName = result.index.includes(' ') ? `\`${result.index}\`` : result.index;
-            // Using the defaults for numSnippets and numWords, but these can be customized for future experiments if desired
-            const numSnippets = 5;
-            const numWords = 300;
-            const esqlQuery = interpolateEsqlQuery(
-              `FROM ${indexName} METADATA _id | WHERE _id == ?docId | EVAL snippets = TOP_SNIPPETS(${fieldName}, ?term, {"num_snippets": ${numSnippets}, "num_words": ${numWords}}) | MV_EXPAND snippets | KEEP snippets`,
-              {
-                docId: result.id,
-                term,
-              }
-            );
-
-            logger.debug(`Running TOP_SNIPPETS query: ${esqlQuery}`);
-
-            const esqlResponse = await executeEsql({ query: esqlQuery, esClient });
-
-            logger.debug(
-              `TOP_SNIPPETS response for doc="${result.id}", field="${
-                field.path
-              }": ${JSON.stringify(esqlResponse)}`
-            );
-
-            if (esqlResponse.values.length > 0 && esqlResponse.values[0][0] != null) {
-              const snippetValue = esqlResponse.values[0][0];
-              if (Array.isArray(snippetValue)) {
-                snippets.push(...snippetValue.filter((s): s is string => typeof s === 'string'));
-              } else if (typeof snippetValue === 'string') {
-                snippets.push(snippetValue);
-              }
+        try {
+          const indexName = result.index.includes(' ') ? `\`${result.index}\`` : result.index;
+          // Using the defaults for numSnippets and numWords, but these can be customized for future experiments if desired
+          const numSnippets = 5;
+          const numWords = 300;
+          const esqlQuery = interpolateEsqlQuery(
+            `FROM ${indexName} METADATA _id | WHERE _id == ?docId | EVAL doc = MV_APPEND(${fields
+              .map((field) => field.path)
+              .join(
+                ', '
+              )}) | EVAL snippets = TOP_SNIPPETS(doc, ?term, {"num_snippets": ${numSnippets}, "num_words": ${numWords}}) | MV_EXPAND snippets | KEEP snippets`,
+            {
+              docId: result.id,
+              term,
             }
-          } catch (error) {
-            logger.debug(
-              `TOP_SNIPPETS failed for document id="${result.id}", field="${field.path}": ${
-                error instanceof Error ? error.message : String(error)
-              }`
-            );
+          );
+
+          logger.info(`Running TOP_SNIPPETS query: ${esqlQuery}`);
+
+          const esqlResponse = await executeEsql({ query: esqlQuery, esClient });
+
+          logger.info(
+            `TOP_SNIPPETS response for doc="${result.id}": ${JSON.stringify(esqlResponse)}`
+          );
+
+          if (esqlResponse.values.length > 0 && esqlResponse.values[0][0] != null) {
+            const snippetValue = esqlResponse.values[0][0];
+            if (Array.isArray(snippetValue)) {
+              snippets.push(...snippetValue.filter((s): s is string => typeof s === 'string'));
+            } else if (typeof snippetValue === 'string') {
+              snippets.push(snippetValue);
+            }
           }
+        } catch (error) {
+          logger.debug(
+            `TOP_SNIPPETS failed for document id="${result.id}": ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
         }
       }
 
