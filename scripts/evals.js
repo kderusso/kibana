@@ -199,6 +199,12 @@ var ENV_DOCS = [
     example: 'KBN_EVALS_EXECUTOR=phoenix',
   },
   {
+    name: 'KBN_EVALS_SKIP_CONNECTOR_SETUP',
+    description:
+      'Skip automatic connector setup/teardown. Use this option when evaluating with pre-defined connectors.',
+    example: 'KBN_EVALS_SKIP_CONNECTOR_SETUP=true',
+  },
+  {
     name: 'PHOENIX_BASE_URL',
     description: 'Phoenix base URL used when KBN_EVALS_EXECUTOR=phoenix.',
     example: 'PHOENIX_BASE_URL=http://localhost:6006',
@@ -232,6 +238,12 @@ var ENV_DOCS = [
     name: 'INDEX_FOCUSED_RAG_EVAL',
     description: 'Restrict RAG evaluators to ground-truth indices.',
     example: 'INDEX_FOCUSED_RAG_EVAL=true',
+  },
+  {
+    name: 'KBN_EVALS_SKIP_CONNECTOR_SETUP',
+    description:
+      'Skip automatic connector setup/teardown. Use this option when evaluating with pre-defined connectors.',
+    example: 'KBN_EVALS_SKIP_CONNECTOR_SETUP=true',
   },
 ];
 
