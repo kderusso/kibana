@@ -9,9 +9,22 @@ import { v5 } from 'uuid';
 import { AxiosError } from 'axios';
 import type { AvailableConnectorWithId } from '@kbn/gen-ai-functional-testing';
 import type { SomeDevLog } from '@kbn/some-dev-log';
-import { createConnectorFixture, getConnectorIdAsUuid } from './create_connector_fixture';
+
+type CreateConnectorFixtureModule = typeof import('./create_connector_fixture');
+
+function loadModule(): CreateConnectorFixtureModule {
+  return require('./create_connector_fixture');
+}
 
 describe('getConnectorIdAsUuid', () => {
+  let getConnectorIdAsUuid: CreateConnectorFixtureModule['getConnectorIdAsUuid'];
+
+  beforeEach(() => {
+    jest.resetModules();
+    delete process.env.KBN_EVALS_SKIP_CONNECTOR_SETUP;
+    ({ getConnectorIdAsUuid } = loadModule());
+  });
+
   it('returns a valid UUID v5 for a given connector id', () => {
     const result = getConnectorIdAsUuid('my-connector');
     // UUID v5 format: 8-4-4-4-12 hex chars
@@ -28,6 +41,29 @@ describe('getConnectorIdAsUuid', () => {
     const a = getConnectorIdAsUuid('connector-a');
     const b = getConnectorIdAsUuid('connector-b');
     expect(a).not.toBe(b);
+  });
+});
+
+describe('resolveConnectorId', () => {
+  afterEach(() => {
+    jest.resetModules();
+    delete process.env.KBN_EVALS_SKIP_CONNECTOR_SETUP;
+  });
+
+  it('returns a UUID when KBN_EVALS_SKIP_CONNECTOR_SETUP is not set', () => {
+    delete process.env.KBN_EVALS_SKIP_CONNECTOR_SETUP;
+    const { resolveConnectorId, getConnectorIdAsUuid } = loadModule();
+
+    const result = resolveConnectorId('my-connector');
+    expect(result).toBe(getConnectorIdAsUuid('my-connector'));
+  });
+
+  it('returns the original id when KBN_EVALS_SKIP_CONNECTOR_SETUP is set', () => {
+    process.env.KBN_EVALS_SKIP_CONNECTOR_SETUP = 'true';
+    const { resolveConnectorId } = loadModule();
+
+    const result = resolveConnectorId('my-connector');
+    expect(result).toBe('my-connector');
   });
 });
 
@@ -48,6 +84,8 @@ describe('createConnectorFixture', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.resetModules();
+    delete process.env.KBN_EVALS_SKIP_CONNECTOR_SETUP;
     mockFetch = jest.fn().mockResolvedValue(undefined);
     mockLog = {
       info: jest.fn(),
@@ -58,7 +96,13 @@ describe('createConnectorFixture', () => {
     mockUse = jest.fn().mockResolvedValue(undefined);
   });
 
+  afterEach(() => {
+    delete process.env.KBN_EVALS_SKIP_CONNECTOR_SETUP;
+  });
+
   it('deletes existing connector before creating a new one', async () => {
+    const { createConnectorFixture } = loadModule();
+
     await createConnectorFixture({
       predefinedConnector,
       fetch: mockFetch,
@@ -86,6 +130,8 @@ describe('createConnectorFixture', () => {
   });
 
   it('generates a deterministic UUID for the connector id', async () => {
+    const { createConnectorFixture } = loadModule();
+
     await createConnectorFixture({
       predefinedConnector,
       fetch: mockFetch,
@@ -102,6 +148,8 @@ describe('createConnectorFixture', () => {
   });
 
   it('calls use() with the UUID-ified connector', async () => {
+    const { createConnectorFixture } = loadModule();
+
     await createConnectorFixture({
       predefinedConnector,
       fetch: mockFetch,
@@ -116,6 +164,7 @@ describe('createConnectorFixture', () => {
   });
 
   it('deletes the connector on teardown after use()', async () => {
+    const { createConnectorFixture } = loadModule();
     const callOrder: string[] = [];
 
     mockFetch.mockImplementation(async ({ method }: { method: string }) => {
@@ -138,6 +187,7 @@ describe('createConnectorFixture', () => {
   });
 
   it('swallows 404 errors on delete', async () => {
+    const { createConnectorFixture } = loadModule();
     const axiosError = new AxiosError('Not Found', '404', undefined, undefined, {
       status: 404,
       data: {},
@@ -163,6 +213,7 @@ describe('createConnectorFixture', () => {
   });
 
   it('throws non-404 errors on delete', async () => {
+    const { createConnectorFixture } = loadModule();
     const serverError = new AxiosError('Internal Server Error', '500', undefined, undefined, {
       status: 500,
       data: {},
@@ -184,5 +235,39 @@ describe('createConnectorFixture', () => {
 
     // Should not proceed to use()
     expect(mockUse).not.toHaveBeenCalled();
+  });
+
+  describe('when KBN_EVALS_SKIP_CONNECTOR_SETUP is set', () => {
+    it('skips setup/teardown and calls use() with the predefined connector as-is', async () => {
+      process.env.KBN_EVALS_SKIP_CONNECTOR_SETUP = 'true';
+      const { createConnectorFixture } = loadModule();
+
+      await createConnectorFixture({
+        predefinedConnector,
+        fetch: mockFetch,
+        log: mockLog,
+        use: mockUse,
+      });
+
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(mockUse).toHaveBeenCalledWith(predefinedConnector);
+    });
+
+    it('logs a message indicating connector setup is being skipped', async () => {
+      process.env.KBN_EVALS_SKIP_CONNECTOR_SETUP = 'true';
+      const { createConnectorFixture } = loadModule();
+
+      await createConnectorFixture({
+        predefinedConnector,
+        fetch: mockFetch,
+        log: mockLog,
+        use: mockUse,
+      });
+
+      expect(mockLog.info).toHaveBeenCalledWith(
+        expect.stringContaining('Skipping connector setup/teardown')
+      );
+      expect(mockLog.info).toHaveBeenCalledWith(expect.stringContaining(predefinedConnector.id));
+    });
   });
 });
