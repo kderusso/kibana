@@ -11,8 +11,6 @@ import type { HttpHandler } from '@kbn/core/public';
 import { isAxiosError } from 'axios';
 import type { ToolingLog } from '@kbn/tooling-log';
 
-const skipConnectorSetup = !!process.env.KBN_EVALS_SKIP_CONNECTOR_SETUP;
-
 /**
  * When running locally, only UUIDs are allowed for non-preconfigured connectors.
  * We generate a deterministic UUID from the logical connector id so runs are stable/idempotent.
@@ -28,7 +26,9 @@ export function getConnectorIdAsUuid(connectorId: string) {
  * Otherwise, a deterministic UUID is generated.
  */
 export function resolveConnectorId(connectorId: string): string {
-  return skipConnectorSetup ? connectorId : getConnectorIdAsUuid(connectorId);
+  return process.env.KBN_EVALS_SKIP_CONNECTOR_SETUP
+    ? connectorId
+    : getConnectorIdAsUuid(connectorId);
 }
 
 export async function createConnectorFixture({
@@ -42,7 +42,7 @@ export async function createConnectorFixture({
   log: ToolingLog;
   use: (connector: AvailableConnectorWithId) => Promise<void>;
 }) {
-  if (skipConnectorSetup) {
+  if (process.env.KBN_EVALS_SKIP_CONNECTOR_SETUP) {
     log.info(
       `Skipping connector setup/teardown for: ${predefinedConnector.id} (KBN_EVALS_SKIP_CONNECTOR_SETUP is set)`
     );
