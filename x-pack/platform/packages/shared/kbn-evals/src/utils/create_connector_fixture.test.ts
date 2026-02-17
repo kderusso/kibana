@@ -8,7 +8,7 @@
 import { v5 } from 'uuid';
 import { AxiosError } from 'axios';
 import type { AvailableConnectorWithId } from '@kbn/gen-ai-functional-testing';
-import type { SomeDevLog } from '@kbn/some-dev-log';
+import type { ToolingLog } from '@kbn/tooling-log';
 
 type CreateConnectorFixtureModule = typeof import('./create_connector_fixture');
 
@@ -79,7 +79,7 @@ describe('createConnectorFixture', () => {
   const expectedUuid = v5(predefinedConnector.id, v5.DNS);
 
   let mockFetch: jest.Mock;
-  let mockLog: jest.Mocked<SomeDevLog>;
+  let mockLog: jest.Mocked<ToolingLog>;
   let mockUse: jest.Mock;
 
   beforeEach(() => {
