@@ -282,12 +282,6 @@ var ENV_DOCS = [
     description: 'Restrict RAG evaluators to ground-truth indices.',
     example: 'INDEX_FOCUSED_RAG_EVAL=true',
   },
-  {
-    name: 'KBN_EVALS_SKIP_CONNECTOR_SETUP',
-    description:
-      'Skip automatic connector setup/teardown. Use this option when evaluating with pre-defined connectors.',
-    example: 'KBN_EVALS_SKIP_CONNECTOR_SETUP=true',
-  },
 ];
 
 function runFastEnv() {
