@@ -122,6 +122,21 @@ try {
 
 Agents can be either built-in or user-defined.
 
+### Default agent
+
+The default agent uses a two-phase architecture: a **research agent** gathers information via sequential tool calls, then hands off to an **answer agent** that formats the final response.
+
+#### Query decomposition
+
+The research agent's system prompt enforces **query decomposition** for all informational queries. Before the first tool call, the agent must:
+
+1. Decompose the user query into atomic sub-questions.
+2. Order them by dependency (independent sub-questions first).
+3. Issue one tool call per sub-question, with a **self-contained search query** that includes all necessary context (entity names, constraints, facts learned from prior results) so each query is meaningful in isolation.
+4. Track which sub-questions have been answered after each tool result.
+
+This prevents the agent from sending a single diluted query that combines multiple unrelated concepts, and ensures follow-up searches incorporate context rather than relying on implicit references.
+
 ### Registering a built-in agent
 
 Please refer to the [Contributor guide](./CONTRIBUTOR_GUIDE.md) for info and examples details.
