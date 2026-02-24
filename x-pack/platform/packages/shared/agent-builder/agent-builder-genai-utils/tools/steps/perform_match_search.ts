@@ -37,8 +37,11 @@ export const performMatchSearch = async ({
   logger: Logger;
 }): Promise<PerformMatchSearchResponse> => {
   // Quick and dirty toggle to demonstrate different combinations returning highlights, snippets, or both
-  const includeHighlights = false;
-  const includeSnippets = true;
+  const includeHighlights = true;
+  const includeSnippets = false;
+  const numSnippets = 5;
+  const fragmentSize = 500;
+
 
   // should replace `any` with `SearchRequest` type when the simplified retriever syntax is supported in @elastic/elasticsearch`
   const searchRequest: any = {
@@ -53,8 +56,8 @@ export const performMatchSearch = async ({
     },
     ...(includeHighlights && {
       highlight: {
-        number_of_fragments: 5,
-        fragment_size: 500,
+        number_of_fragments: numSnippets,
+        fragment_size: fragmentSize,
         pre_tags: [''],
         post_tags: [''],
         order: 'score',
@@ -99,14 +102,13 @@ export const performMatchSearch = async ({
         try {
           const indexName = result.index.includes(' ') ? `\`${result.index}\`` : result.index;
           // Using the defaults for numSnippets and numWords, but these can be customized for future experiments if desired
-          const numSnippets = 5;
-          const numWords = 300;
+          const fieldPaths = fields.map((field) => field.path);
+          const mvAppendExpr =
+            fieldPaths.length === 1
+              ? fieldPaths[0]
+              : fieldPaths.reduce((acc, path) => `MV_APPEND(${acc}, ${path})`);
           const esqlQuery = interpolateEsqlQuery(
-            `FROM ${indexName} METADATA _id | WHERE _id == ?docId | EVAL doc = MV_APPEND(${fields
-              .map((field) => field.path)
-              .join(
-                ', '
-              )}) | EVAL snippets = TOP_SNIPPETS(doc, ?term, {"num_snippets": ${numSnippets}, "num_words": ${numWords}}) | MV_EXPAND snippets | KEEP snippets`,
+            `FROM ${indexName} METADATA _id | WHERE _id == ?docId | EVAL doc = ${mvAppendExpr} | EVAL snippets = TOP_SNIPPETS(doc, ?term, {"num_snippets": ${numSnippets}, "num_words": ${fragmentSize}}) | MV_EXPAND snippets | KEEP snippets`,
             {
               docId: result.id,
               term,
@@ -117,7 +119,7 @@ export const performMatchSearch = async ({
 
           const esqlResponse = await executeEsql({ query: esqlQuery, esClient });
 
-          logger.info(
+          logger.debug(
             `TOP_SNIPPETS response for doc="${result.id}": ${JSON.stringify(esqlResponse)}`
           );
 
