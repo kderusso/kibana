@@ -19,6 +19,9 @@ const MMR_LAMBDA = 0.6;
 // Default rerank window: 30 results when size is 10 (i.e. 3x multiplier)
 const DEFAULT_RERANK_WINDOW_MULTIPLIER = 3;
 
+// Inference endpoint used for semantic reranking
+const RERANK_INFERENCE_ID = '.jina-reranker-v3';
+
 // TOP_SNIPPETS configuration
 const SNIPPET_NUM_SNIPPETS = 2;
 const SNIPPET_NUM_WORDS = 750;
@@ -225,14 +228,12 @@ const rerankAndFetchSnippets = async ({
   fields,
   docIds,
   esClient,
-  inferenceId,
 }: {
   index: string;
   term: string;
   fields: MappingField[];
   docIds: string[];
   esClient: ElasticsearchClient;
-  inferenceId?: string;
 }): Promise<RerankAndSnippetResult[]> => {
   if (docIds.length === 0 || fields.length === 0) return [];
 
@@ -244,8 +245,7 @@ const rerankAndFetchSnippets = async ({
   const rerankField = needsEval ? '_rerank_input' : quoteEsqlField(fields[0].path);
 
   // Build RERANK clause
-  const withClause = inferenceId ? ` WITH {"inference_id": "${inferenceId}"}` : '';
-  const rerankClause = `RERANK ?term ON ${rerankField}${withClause}`;
+  const rerankClause = `RERANK ?term ON ${rerankField} WITH {"inference_id": "${RERANK_INFERENCE_ID}"}`;
 
   // Build TOP_SNIPPETS EVAL clauses
   const snippetOptions = `{"num_snippets": ${SNIPPET_NUM_SNIPPETS}, "num_words": ${SNIPPET_NUM_WORDS}}`;
@@ -312,7 +312,6 @@ export const performMatchSearch = async ({
   esClient,
   logger,
   rerankWindowSize,
-  inferenceId,
   diversify = true,
 }: {
   term: string;
@@ -322,7 +321,6 @@ export const performMatchSearch = async ({
   esClient: ElasticsearchClient;
   logger: Logger;
   rerankWindowSize?: number;
-  inferenceId?: string;
   diversify?: boolean;
 }): Promise<PerformMatchSearchResponse> => {
   const effectiveRerankWindowSize = rerankWindowSize ?? size * DEFAULT_RERANK_WINDOW_MULTIPLIER;
@@ -370,7 +368,6 @@ export const performMatchSearch = async ({
     fields,
     docIds,
     esClient,
-    inferenceId,
   });
 
   if (reranked.length === 0) {

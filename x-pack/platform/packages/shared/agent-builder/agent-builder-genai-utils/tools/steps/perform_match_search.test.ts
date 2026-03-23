@@ -234,27 +234,7 @@ describe('performMatchSearch', () => {
       expect(query).toContain('MV_APPEND(MV_APPEND(`title`, `body`), `summary`)');
     });
 
-    it('includes inference_id in WITH clause when provided', async () => {
-      const esClient = createMockEsClient({
-        hits: { hits: [createSearchHit('doc1', 'my-index', 1.0)] },
-      });
-      const logger = createMockLogger();
-
-      await performMatchSearch({
-        term: 'test query',
-        index: 'my-index',
-        fields: [textField('title')],
-        size: 10,
-        inferenceId: 'my-reranker',
-        esClient,
-        logger,
-      });
-
-      const { query } = executeEsql.mock.calls[0][0];
-      expect(query).toContain('WITH {"inference_id": "my-reranker"}');
-    });
-
-    it('omits WITH clause when no inferenceId is provided', async () => {
+    it('always includes the hardcoded .jina-reranker-v3 inference_id', async () => {
       const esClient = createMockEsClient({
         hits: { hits: [createSearchHit('doc1', 'my-index', 1.0)] },
       });
@@ -270,7 +250,7 @@ describe('performMatchSearch', () => {
       });
 
       const { query } = executeEsql.mock.calls[0][0];
-      expect(query).not.toContain('WITH');
+      expect(query).toContain('WITH {"inference_id": ".jina-reranker-v3"}');
     });
 
     it('skips ES|QL call when search returns no hits', async () => {
