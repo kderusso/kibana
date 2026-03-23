@@ -121,7 +121,7 @@ describe('performMatchSearch', () => {
       expect(searchCall._source).toBe(false);
     });
 
-    it('over-fetches by 3x for the MMR candidate pool', async () => {
+    it('fetches rerankWindowSize candidates (default 3x size)', async () => {
       const esClient = createMockEsClient();
       const logger = createMockLogger();
 
@@ -137,14 +137,30 @@ describe('performMatchSearch', () => {
       const searchCall = (esClient.search as jest.Mock).mock.calls[0][0];
       expect(searchCall.size).toBe(30);
     });
+
+    it('respects a custom rerankWindowSize', async () => {
+      const esClient = createMockEsClient();
+      const logger = createMockLogger();
+
+      await performMatchSearch({
+        term: 'test query',
+        index: 'my-local-index',
+        fields: [textField('title')],
+        size: 10,
+        rerankWindowSize: 50,
+        esClient,
+        logger,
+      });
+
+      const searchCall = (esClient.search as jest.Mock).mock.calls[0][0];
+      expect(searchCall.size).toBe(50);
+    });
   });
 
-  describe('ES|QL TOP_SNIPPETS integration', () => {
-    it('calls executeEsql with TOP_SNIPPETS for each text field', async () => {
+  describe('ES|QL RERANK + TOP_SNIPPETS', () => {
+    it('builds a combined RERANK + TOP_SNIPPETS query', async () => {
       const esClient = createMockEsClient({
-        hits: {
-          hits: [createSearchHit('doc1', 'my-index', 1.0)],
-        },
+        hits: { hits: [createSearchHit('doc1', 'my-index', 1.0)] },
       });
       const logger = createMockLogger();
 
@@ -159,11 +175,102 @@ describe('performMatchSearch', () => {
 
       expect(executeEsql).toHaveBeenCalledTimes(1);
       const { query, params } = executeEsql.mock.calls[0][0];
+
+      // Should filter to candidate doc IDs
+      expect(query).toContain('"doc1"');
+      expect(query).toContain('METADATA _id');
+
+      // Should combine fields via MV_APPEND for RERANK input
+      expect(query).toContain('MV_APPEND(`title`, `body`)');
+      expect(query).toContain('RERANK ?term ON _rerank_input');
+
+      // Should include TOP_SNIPPETS per field
       expect(query).toContain('TOP_SNIPPETS(`title`');
       expect(query).toContain('TOP_SNIPPETS(`body`');
-      expect(query).toContain('METADATA _id');
-      expect(query).toContain('"doc1"');
+
+      // Should keep _score from RERANK
+      expect(query).toContain('_score');
+
       expect(params).toEqual([{ term: 'test query' }]);
+    });
+
+    it('skips MV_APPEND for single-field indices and uses field directly', async () => {
+      const esClient = createMockEsClient({
+        hits: { hits: [createSearchHit('doc1', 'my-index', 1.0)] },
+      });
+      const logger = createMockLogger();
+
+      await performMatchSearch({
+        term: 'test query',
+        index: 'my-index',
+        fields: [textField('title')],
+        size: 10,
+        esClient,
+        logger,
+      });
+
+      const { query } = executeEsql.mock.calls[0][0];
+      expect(query).not.toContain('MV_APPEND');
+      expect(query).not.toContain('_rerank_input');
+      expect(query).toContain('RERANK ?term ON `title`');
+    });
+
+    it('nests MV_APPEND for three or more fields', async () => {
+      const esClient = createMockEsClient({
+        hits: { hits: [createSearchHit('doc1', 'my-index', 1.0)] },
+      });
+      const logger = createMockLogger();
+
+      await performMatchSearch({
+        term: 'test query',
+        index: 'my-index',
+        fields: [textField('title'), textField('body'), textField('summary')],
+        size: 10,
+        esClient,
+        logger,
+      });
+
+      const { query } = executeEsql.mock.calls[0][0];
+      expect(query).toContain('MV_APPEND(MV_APPEND(`title`, `body`), `summary`)');
+    });
+
+    it('includes inference_id in WITH clause when provided', async () => {
+      const esClient = createMockEsClient({
+        hits: { hits: [createSearchHit('doc1', 'my-index', 1.0)] },
+      });
+      const logger = createMockLogger();
+
+      await performMatchSearch({
+        term: 'test query',
+        index: 'my-index',
+        fields: [textField('title')],
+        size: 10,
+        inferenceId: 'my-reranker',
+        esClient,
+        logger,
+      });
+
+      const { query } = executeEsql.mock.calls[0][0];
+      expect(query).toContain('WITH {"inference_id": "my-reranker"}');
+    });
+
+    it('omits WITH clause when no inferenceId is provided', async () => {
+      const esClient = createMockEsClient({
+        hits: { hits: [createSearchHit('doc1', 'my-index', 1.0)] },
+      });
+      const logger = createMockLogger();
+
+      await performMatchSearch({
+        term: 'test query',
+        index: 'my-index',
+        fields: [textField('title')],
+        size: 10,
+        esClient,
+        logger,
+      });
+
+      const { query } = executeEsql.mock.calls[0][0];
+      expect(query).not.toContain('WITH');
     });
 
     it('skips ES|QL call when search returns no hits', async () => {
@@ -183,17 +290,15 @@ describe('performMatchSearch', () => {
       expect(results).toEqual([]);
     });
 
-    it('maps TOP_SNIPPETS results into highlights', async () => {
+    it('maps reranked snippets into highlights', async () => {
       const esClient = createMockEsClient({
-        hits: {
-          hits: [createSearchHit('doc1', 'my-index', 1.0)],
-        },
+        hits: { hits: [createSearchHit('doc1', 'my-index', 1.0)] },
       });
       const logger = createMockLogger();
 
       executeEsql.mockResolvedValue({
-        columns: [{ name: '_id' }, { name: 'snippet_0' }],
-        values: [['doc1', ['snippet about cats', 'snippet about dogs']]],
+        columns: [{ name: '_id' }, { name: '_score' }, { name: 'snippet_0' }],
+        values: [['doc1', 0.95, ['snippet about cats', 'snippet about dogs']]],
       });
 
       const { results } = await performMatchSearch({
@@ -217,6 +322,12 @@ describe('performMatchSearch', () => {
       const esClient = createMockEsClient({ hits: { hits } });
       const logger = createMockLogger();
 
+      // Return reranked results for all 9 docs
+      executeEsql.mockResolvedValue({
+        columns: [{ name: '_id' }, { name: '_score' }, { name: 'snippet_0' }],
+        values: hits.map((h, i) => [h._id, 10 - i, [`snippet ${i}`]]),
+      });
+
       const { results } = await performMatchSearch({
         term: 'test query',
         index: 'my-index',
@@ -229,6 +340,39 @@ describe('performMatchSearch', () => {
       expect(results).toHaveLength(3);
     });
 
+    it('uses rerank scores (not initial ES scores) for MMR relevance', async () => {
+      // Initial ES scores: doc_a=10, doc_b=9, doc_c=8
+      const hits = [
+        createSearchHit('doc_a', 'my-index', 10),
+        createSearchHit('doc_b', 'my-index', 9),
+        createSearchHit('doc_c', 'my-index', 8),
+      ];
+      const esClient = createMockEsClient({ hits: { hits } });
+      const logger = createMockLogger();
+
+      // After reranking: doc_c scores highest, doc_a lowest
+      executeEsql.mockResolvedValue({
+        columns: [{ name: '_id' }, { name: '_score' }, { name: 'snippet_0' }],
+        values: [
+          ['doc_a', 0.2, ['alpha content']],
+          ['doc_b', 0.5, ['beta content']],
+          ['doc_c', 0.9, ['gamma content']],
+        ],
+      });
+
+      const { results } = await performMatchSearch({
+        term: 'test query',
+        index: 'my-index',
+        fields: [textField('title')],
+        size: 2,
+        esClient,
+        logger,
+      });
+
+      // doc_c should be first (highest rerank score), not doc_a
+      expect(results[0].id).toBe('doc_c');
+    });
+
     it('promotes diverse results over redundant ones', async () => {
       const hits = [
         createSearchHit('doc_a', 'my-index', 10),
@@ -239,12 +383,13 @@ describe('performMatchSearch', () => {
       const logger = createMockLogger();
 
       // doc_a and doc_b have near-identical snippets; doc_c is very different
+      // rerank scores are close so diversity breaks the tie
       executeEsql.mockResolvedValue({
-        columns: [{ name: '_id' }, { name: 'snippet_0' }],
+        columns: [{ name: '_id' }, { name: '_score' }, { name: 'snippet_0' }],
         values: [
-          ['doc_a', ['the quick brown fox jumps over the lazy dog']],
-          ['doc_b', ['the quick brown fox jumps over the lazy cat']],
-          ['doc_c', ['elasticsearch distributed search engine cluster nodes']],
+          ['doc_a', 0.9, ['the quick brown fox jumps over the lazy dog']],
+          ['doc_b', 0.85, ['the quick brown fox jumps over the lazy cat']],
+          ['doc_c', 0.8, ['elasticsearch distributed search engine cluster nodes']],
         ],
       });
 

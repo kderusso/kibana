@@ -15,7 +15,9 @@ import { MAX_ES_RESPONSE_SIZE_BYTES } from '../constants';
 
 // MMR diversification constants
 const MMR_LAMBDA = 0.6;
-const OVER_FETCH_MULTIPLIER = 3;
+
+// Default rerank window: 30 results when size is 10 (i.e. 3x multiplier)
+const DEFAULT_RERANK_WINDOW_MULTIPLIER = 3;
 
 // TOP_SNIPPETS configuration
 const SNIPPET_NUM_SNIPPETS = 2;
@@ -38,7 +40,7 @@ export interface PerformMatchSearchResponse {
  * cross-cluster index patterns.
  *
  * Highlights are not included — snippets are fetched separately via ES|QL
- * TOP_SNIPPETS after the initial search.
+ * TOP_SNIPPETS after semantic reranking.
  */
 const buildSearchRequest = ({
   index,
@@ -133,7 +135,7 @@ interface MmrCandidate {
 
 /**
  * Maximal Marginal Relevance re-ranking. Iteratively selects candidates
- * that balance relevance (from ES score) against diversity (low Jaccard
+ * that balance relevance (from rerank score) against diversity (low Jaccard
  * similarity to already-selected snippet text).
  *
  * MMR score = λ * relevance - (1 - λ) * max_sim(candidate, selected)
@@ -175,7 +177,7 @@ const mmrRerank = (candidates: MmrCandidate[], size: number): MmrCandidate[] => 
   return selected;
 };
 
-// --- ES|QL snippet fetching ---
+// --- ES|QL reranking and snippet fetching ---
 
 const escapeEsqlString = (str: string): string => {
   return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -186,44 +188,85 @@ const quoteEsqlField = (fieldPath: string): string => {
 };
 
 /**
- * Fetches snippets for the given documents using ES|QL TOP_SNIPPETS.
- * Runs a single ES|QL query that evaluates TOP_SNIPPETS per text field,
- * then merges all snippets per document into a flat list.
+ * Builds a nested MV_APPEND expression that combines all field values into
+ * a single multivalued column for RERANK input.
+ *
+ * 1 field  → `field1` (no MV_APPEND needed)
+ * 2 fields → MV_APPEND(`field1`, `field2`)
+ * 3 fields → MV_APPEND(MV_APPEND(`field1`, `field2`), `field3`)
  */
-const fetchSnippets = async ({
+const buildMvAppendExpr = (fields: MappingField[]): string => {
+  if (fields.length === 1) {
+    return quoteEsqlField(fields[0].path);
+  }
+  return fields
+    .map((f) => quoteEsqlField(f.path))
+    .reduce((acc, quoted) => `MV_APPEND(${acc}, ${quoted})`);
+};
+
+interface RerankAndSnippetResult {
+  id: string;
+  rerankScore: number;
+  snippets: string[];
+}
+
+/**
+ * Performs semantic reranking and snippet extraction in a single ES|QL query.
+ *
+ * The query:
+ * 1. Filters to the candidate doc IDs from the initial search
+ * 2. Combines all searchable fields into a multivalued column via MV_APPEND
+ * 3. Runs RERANK on the combined input to get semantic relevance scores
+ * 4. Evaluates TOP_SNIPPETS per field for snippet extraction
+ */
+const rerankAndFetchSnippets = async ({
   index,
   term,
   fields,
   docIds,
   esClient,
+  inferenceId,
 }: {
   index: string;
   term: string;
   fields: MappingField[];
   docIds: string[];
   esClient: ElasticsearchClient;
-}): Promise<Map<string, string[]>> => {
-  if (docIds.length === 0 || fields.length === 0) return new Map();
+  inferenceId?: string;
+}): Promise<RerankAndSnippetResult[]> => {
+  if (docIds.length === 0 || fields.length === 0) return [];
 
+  const idFilter = docIds.map((id) => `"${escapeEsqlString(id)}"`).join(', ');
+
+  // Build the MV_APPEND expression for RERANK input
+  const mvAppendExpr = buildMvAppendExpr(fields);
+  const needsEval = fields.length > 1;
+  const rerankField = needsEval ? '_rerank_input' : quoteEsqlField(fields[0].path);
+
+  // Build RERANK clause
+  const withClause = inferenceId ? ` WITH {"inference_id": "${inferenceId}"}` : '';
+  const rerankClause = `RERANK ?term ON ${rerankField}${withClause}`;
+
+  // Build TOP_SNIPPETS EVAL clauses
   const snippetOptions = `{"num_snippets": ${SNIPPET_NUM_SNIPPETS}, "num_words": ${SNIPPET_NUM_WORDS}}`;
-
-  const evalClauses = fields
+  const snippetEvalClauses = fields
     .map(
       (f, i) => `snippet_${i} = TOP_SNIPPETS(${quoteEsqlField(f.path)}, ?term, ${snippetOptions})`
     )
     .join(', ');
 
-  const idFilter = docIds.map((id) => `"${escapeEsqlString(id)}"`).join(', ');
-
   const snippetColumns = fields.map((_, i) => `snippet_${i}`);
-  const keepColumns = ['_id', ...snippetColumns].join(', ');
+  const keepColumns = ['_id', '_score', ...snippetColumns].join(', ');
 
-  const query = [
-    `FROM ${index} METADATA _id`,
-    `WHERE _id IN (${idFilter})`,
-    `EVAL ${evalClauses}`,
-    `KEEP ${keepColumns}`,
-  ].join('\n| ');
+  const queryParts = [`FROM ${index} METADATA _id`, `WHERE _id IN (${idFilter})`];
+
+  if (needsEval) {
+    queryParts.push(`EVAL _rerank_input = ${mvAppendExpr}`);
+  }
+
+  queryParts.push(rerankClause, `EVAL ${snippetEvalClauses}`, `KEEP ${keepColumns}`);
+
+  const query = queryParts.join('\n| ');
 
   const response = await executeEsql({
     query,
@@ -231,14 +274,18 @@ const fetchSnippets = async ({
     esClient,
   });
 
+  // Parse response
   const idColIdx = response.columns.findIndex((c) => c.name === '_id');
+  const scoreColIdx = response.columns.findIndex((c) => c.name === '_score');
   const snippetColIndices = snippetColumns.map((name) =>
     response.columns.findIndex((c) => c.name === name)
   );
 
-  const snippetMap = new Map<string, string[]>();
+  const results: RerankAndSnippetResult[] = [];
   for (const row of response.values) {
     const docId = row[idColIdx] as string;
+    const rerankScore = (row[scoreColIdx] as number) ?? 0;
+
     const snippets: string[] = [];
     for (const colIdx of snippetColIndices) {
       if (colIdx >= 0) {
@@ -250,10 +297,11 @@ const fetchSnippets = async ({
         }
       }
     }
-    snippetMap.set(docId, snippets);
+
+    results.push({ id: docId, rerankScore, snippets });
   }
 
-  return snippetMap;
+  return results;
 };
 
 export const performMatchSearch = async ({
@@ -263,6 +311,8 @@ export const performMatchSearch = async ({
   size,
   esClient,
   logger,
+  rerankWindowSize,
+  inferenceId,
 }: {
   term: string;
   fields: MappingField[];
@@ -270,9 +320,16 @@ export const performMatchSearch = async ({
   size: number;
   esClient: ElasticsearchClient;
   logger: Logger;
+  rerankWindowSize?: number;
+  inferenceId?: string;
 }): Promise<PerformMatchSearchResponse> => {
-  const overFetchSize = size * OVER_FETCH_MULTIPLIER;
-  const searchRequest = buildSearchRequest({ index, term, fields, size: overFetchSize });
+  const effectiveRerankWindowSize = rerankWindowSize ?? size * DEFAULT_RERANK_WINDOW_MULTIPLIER;
+  const searchRequest = buildSearchRequest({
+    index,
+    term,
+    fields,
+    size: effectiveRerankWindowSize,
+  });
 
   logger.debug(`Elasticsearch search request: ${JSON.stringify(searchRequest, null, 2)}`);
 
@@ -301,30 +358,34 @@ export const performMatchSearch = async ({
     return { results: [] };
   }
 
-  // Normalize scores to [0, 1] for MMR
-  const maxScore = Math.max(...hits.map((h) => h._score ?? 0));
-  const normalizedHits = hits.map((hit) => ({
-    id: hit._id!,
-    index: hit._index!,
-    score: maxScore > 0 ? (hit._score ?? 0) / maxScore : 0,
-  }));
+  // Collect candidate doc IDs from the initial retriever results
+  const docIds = hits.map((hit) => hit._id!);
 
-  // Fetch snippets via ES|QL TOP_SNIPPETS
-  const docIds = normalizedHits.map((h) => h.id);
-  const snippetMap = await fetchSnippets({ index, term, fields, docIds, esClient });
-
-  // Build MMR candidates and re-rank
-  const candidates: MmrCandidate[] = normalizedHits.map((hit) => {
-    const snippets = snippetMap.get(hit.id) ?? [];
-    return {
-      id: hit.id,
-      index: hit.index,
-      snippets,
-      tokens: tokenize(snippets.join(' ')),
-      relevanceScore: hit.score,
-    };
+  // Semantic reranking + snippet extraction via ES|QL
+  const reranked = await rerankAndFetchSnippets({
+    index,
+    term,
+    fields,
+    docIds,
+    esClient,
+    inferenceId,
   });
 
+  if (reranked.length === 0) {
+    return { results: [] };
+  }
+
+  // Normalize rerank scores to [0, 1] for MMR
+  const maxRerankScore = Math.max(...reranked.map((r) => r.rerankScore));
+  const candidates: MmrCandidate[] = reranked.map((r) => ({
+    id: r.id,
+    index,
+    snippets: r.snippets,
+    tokens: tokenize(r.snippets.join(' ')),
+    relevanceScore: maxRerankScore > 0 ? r.rerankScore / maxRerankScore : 0,
+  }));
+
+  // MMR diversification on the reranked results
   const diversified = mmrRerank(candidates, size);
 
   const results = diversified.map<MatchResult>((candidate) => ({
