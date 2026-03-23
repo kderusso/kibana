@@ -313,6 +313,7 @@ export const performMatchSearch = async ({
   logger,
   rerankWindowSize,
   inferenceId,
+  diversify = true,
 }: {
   term: string;
   fields: MappingField[];
@@ -322,6 +323,7 @@ export const performMatchSearch = async ({
   logger: Logger;
   rerankWindowSize?: number;
   inferenceId?: string;
+  diversify?: boolean;
 }): Promise<PerformMatchSearchResponse> => {
   const effectiveRerankWindowSize = rerankWindowSize ?? size * DEFAULT_RERANK_WINDOW_MULTIPLIER;
   const searchRequest = buildSearchRequest({
@@ -373,6 +375,17 @@ export const performMatchSearch = async ({
 
   if (reranked.length === 0) {
     return { results: [] };
+  }
+
+  if (!diversify) {
+    // Return reranked results in score order, trimmed to requested size
+    const sorted = [...reranked].sort((a, b) => b.rerankScore - a.rerankScore).slice(0, size);
+    const results = sorted.map<MatchResult>((r) => ({
+      id: r.id,
+      index,
+      highlights: r.snippets,
+    }));
+    return { results };
   }
 
   // Normalize rerank scores to [0, 1] for MMR

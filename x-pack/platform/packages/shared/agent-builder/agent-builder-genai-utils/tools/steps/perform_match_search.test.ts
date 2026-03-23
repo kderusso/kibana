@@ -373,6 +373,40 @@ describe('performMatchSearch', () => {
       expect(results[0].id).toBe('doc_c');
     });
 
+    it('returns results in pure rerank score order when diversify is false', async () => {
+      const hits = [
+        createSearchHit('doc_a', 'my-index', 10),
+        createSearchHit('doc_b', 'my-index', 9),
+        createSearchHit('doc_c', 'my-index', 8),
+      ];
+      const esClient = createMockEsClient({ hits: { hits } });
+      const logger = createMockLogger();
+
+      // doc_a and doc_b have near-identical snippets; doc_c is very different
+      executeEsql.mockResolvedValue({
+        columns: [{ name: '_id' }, { name: '_score' }, { name: 'snippet_0' }],
+        values: [
+          ['doc_a', 0.9, ['the quick brown fox jumps over the lazy dog']],
+          ['doc_b', 0.85, ['the quick brown fox jumps over the lazy cat']],
+          ['doc_c', 0.8, ['elasticsearch distributed search engine cluster nodes']],
+        ],
+      });
+
+      const { results } = await performMatchSearch({
+        term: 'test query',
+        index: 'my-index',
+        fields: [textField('title')],
+        size: 2,
+        diversify: false,
+        esClient,
+        logger,
+      });
+
+      // Without diversification, pure rerank score order: doc_a, doc_b
+      expect(results[0].id).toBe('doc_a');
+      expect(results[1].id).toBe('doc_b');
+    });
+
     it('promotes diverse results over redundant ones', async () => {
       const hits = [
         createSearchHit('doc_a', 'my-index', 10),
