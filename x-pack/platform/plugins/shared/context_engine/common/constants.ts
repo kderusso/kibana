@@ -1,0 +1,22 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+export const publicApiPath = '/api/context_engine';
+
+export const namespacePath = `${publicApiPath}/namespace`;
+export const namespaceByIdPath = `${namespacePath}/{namespaceId}`;
+
+/**
+ * Hard limit on the number of namespaces returned by the list API. Filtering
+ * and pagination may be added in future iterations.
+ */
+export const MAX_NAMESPACES = 100;
+
+export const MAX_NAMESPACE_ID_LENGTH = 256;
+export const MAX_NAMESPACE_NAME_LENGTH = 256;
+export const MAX_NAMESPACE_DESCRIPTION_LENGTH = 2048;
+export const MAX_NAMESPACE_SOURCE_LENGTH = 1024;
