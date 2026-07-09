@@ -14,4 +14,5 @@ export {
   SCOUT_AGENT_BUILDER_GITHUB_MOCK_PORT,
   CHAT_CONVERSATIONS_INDEX,
   CHAT_AGENTS_INDEX,
+  CHAT_USER_PROMPTS_INDEX,
 } from '../../../scout_agent_builder_shared/lib/constants';

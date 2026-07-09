@@ -29,3 +29,6 @@ export const CHAT_CONVERSATIONS_INDEX = '.chat-conversations';
 
 /** Matches `chatSystemIndex('agents')` from `@kbn/agent-builder-server`. */
 export const CHAT_AGENTS_INDEX = '.chat-agents';
+
+/** Matches `chatSystemIndex('user-prompts')` from `@kbn/agent-builder-server`. */
+export const CHAT_USER_PROMPTS_INDEX = '.chat-user-prompts';

@@ -1,5 +1,5 @@
 {
-  "sha1": "b799de0140d86561d2caf13781bff24869f5913e",
+  "sha1": "1817e2e487839fa090378481e397290646335eda",
   "tests": [
     {
       "id": "d18f81a84aa5c84-01def2558f31c21",
@@ -2340,6 +2340,76 @@
       "location": {
         "file": "x-pack/platform/plugins/shared/agent_builder/test/scout_agent_builder/api/tests/tools_legacy_migration_api.spec.ts",
         "line": 130,
+        "column": 12
+      }
+    },
+    {
+      "id": "0f48cdd381c021c-710231cd80c65a9",
+      "title": "Agent Builder — user prompts access-control API a user can manage their own prompts",
+      "expectedStatus": "passed",
+      "tags": [
+        "@local-stateful-classic",
+        "@cloud-stateful-classic"
+      ],
+      "location": {
+        "file": "x-pack/platform/plugins/shared/agent_builder/test/scout_agent_builder/api/tests/user_prompts_access_control_api.spec.ts",
+        "line": 183,
+        "column": 12
+      }
+    },
+    {
+      "id": "0f48cdd381c021c-c4caa5601dece83",
+      "title": "Agent Builder — user prompts access-control API a user cannot list another user prompts",
+      "expectedStatus": "passed",
+      "tags": [
+        "@local-stateful-classic",
+        "@cloud-stateful-classic"
+      ],
+      "location": {
+        "file": "x-pack/platform/plugins/shared/agent_builder/test/scout_agent_builder/api/tests/user_prompts_access_control_api.spec.ts",
+        "line": 219,
+        "column": 12
+      }
+    },
+    {
+      "id": "0f48cdd381c021c-32d2a8ffb88192a",
+      "title": "Agent Builder — user prompts access-control API a user cannot read another user prompt by id",
+      "expectedStatus": "passed",
+      "tags": [
+        "@local-stateful-classic",
+        "@cloud-stateful-classic"
+      ],
+      "location": {
+        "file": "x-pack/platform/plugins/shared/agent_builder/test/scout_agent_builder/api/tests/user_prompts_access_control_api.spec.ts",
+        "line": 231,
+        "column": 12
+      }
+    },
+    {
+      "id": "0f48cdd381c021c-08f0caeda1c52f9",
+      "title": "Agent Builder — user prompts access-control API a user cannot update another user prompt",
+      "expectedStatus": "passed",
+      "tags": [
+        "@local-stateful-classic",
+        "@cloud-stateful-classic"
+      ],
+      "location": {
+        "file": "x-pack/platform/plugins/shared/agent_builder/test/scout_agent_builder/api/tests/user_prompts_access_control_api.spec.ts",
+        "line": 246,
+        "column": 12
+      }
+    },
+    {
+      "id": "0f48cdd381c021c-58bfee91c26f974",
+      "title": "Agent Builder — user prompts access-control API a user cannot delete another user prompt",
+      "expectedStatus": "passed",
+      "tags": [
+        "@local-stateful-classic",
+        "@cloud-stateful-classic"
+      ],
+      "location": {
+        "file": "x-pack/platform/plugins/shared/agent_builder/test/scout_agent_builder/api/tests/user_prompts_access_control_api.spec.ts",
+        "line": 274,
         "column": 12
       }
     }

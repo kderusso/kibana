@@ -25,6 +25,16 @@ const createUserPromptNotFoundError = (promptId: string) => {
 };
 
 /**
+ * User prompts are personal to their creator. The backing `.chat-user-prompts`
+ * system index is queried with the internal user, so this filter is the only
+ * boundary preventing cross-user access within a space — it must be applied
+ * to every query.
+ */
+const createOwnerDslFilter = (username: string): QueryDslQueryContainer => {
+  return { term: { created_by: username } };
+};
+
+/**
  * Client for persisted user prompt definitions.
  */
 export interface UserPromptClient {
@@ -81,7 +91,10 @@ class UserPromptClientImpl implements UserPromptClient {
     const { query, page = 1, perPage = 20 } = params;
     const from = (page - 1) * perPage;
 
-    const filters: QueryDslQueryContainer[] = [createSpaceDslFilter(this.space)];
+    const filters: QueryDslQueryContainer[] = [
+      createSpaceDslFilter(this.space),
+      createOwnerDslFilter(this.username),
+    ];
 
     // Add search query if provided
     let searchQuery: QueryDslQueryContainer | undefined;
@@ -205,7 +218,11 @@ class UserPromptClientImpl implements UserPromptClient {
       terminate_after: 1,
       query: {
         bool: {
-          filter: [createSpaceDslFilter(this.space), { term: { id } }],
+          filter: [
+            createSpaceDslFilter(this.space),
+            createOwnerDslFilter(this.username),
+            { term: { id } },
+          ],
         },
       },
     });
