@@ -143,6 +143,19 @@ describe('NamespaceService', () => {
       ).rejects.toBeInstanceOf(InvalidNamespaceSourceError);
       expect(storageClient.index).not.toHaveBeenCalled();
     });
+
+    it('rejects a source that resolves only to indices or aliases, not a data stream', async () => {
+      esClient.indices.resolveIndex.mockResponse({
+        indices: [{ name: 'customer_support', attributes: [] }],
+        aliases: [{ name: 'customer_support_alias', indices: ['customer_support'] }],
+        data_streams: [],
+      });
+
+      await expect(service.put('customer_support', properties)).rejects.toBeInstanceOf(
+        InvalidNamespaceSourceError
+      );
+      expect(storageClient.index).not.toHaveBeenCalled();
+    });
   });
 
   describe('get', () => {

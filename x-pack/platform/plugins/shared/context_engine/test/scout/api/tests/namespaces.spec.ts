@@ -12,7 +12,8 @@ import { apiTest, testData } from '../fixtures';
 
 const NAMESPACE_ID = 'scout_test_namespace';
 const NAMESPACE_PATH = `api/context_engine/namespace/${NAMESPACE_ID}`;
-const SOURCE_INDEX = 'scout-test-context-engine-source';
+const SOURCE_DATA_STREAM = 'scout-test-context-engine-source';
+const SOURCE_INDEX_TEMPLATE = 'scout-test-context-engine-template';
 const CONTEXT_ENGINE_ENABLED_SETTING = 'contextEngine:enabled';
 
 const API_HEADERS = {
@@ -24,7 +25,7 @@ const namespaceBody = {
   name: 'scout_test_namespace',
   description: 'Namespace created by the Scout API test suite',
   type: 'data_stream',
-  source: SOURCE_INDEX,
+  source: SOURCE_DATA_STREAM,
   metadata: { preferred_harnesses: ['scout'] },
 };
 
@@ -39,7 +40,13 @@ apiTest.describe.skip('context engine namespaces API', { tag: tags.stateful.clas
     adminApiCredentials = await requestAuth.getApiKey('admin');
     viewerApiCredentials = await requestAuth.getApiKey('viewer');
     await kbnClient.uiSettings.update({ [CONTEXT_ENGINE_ENABLED_SETTING]: true });
-    await esClient.indices.create({ index: SOURCE_INDEX });
+    await esClient.indices.putIndexTemplate({
+      name: SOURCE_INDEX_TEMPLATE,
+      index_patterns: [`${SOURCE_DATA_STREAM}*`],
+      data_stream: {},
+      priority: 500,
+    });
+    await esClient.indices.createDataStream({ name: SOURCE_DATA_STREAM });
   });
 
   apiTest.afterAll(async ({ apiClient, kbnClient, esClient }) => {
@@ -47,7 +54,8 @@ apiTest.describe.skip('context engine namespaces API', { tag: tags.stateful.clas
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
     });
-    await esClient.indices.delete({ index: SOURCE_INDEX }, { ignore: [404] });
+    await esClient.indices.deleteDataStream({ name: SOURCE_DATA_STREAM }, { ignore: [404] });
+    await esClient.indices.deleteIndexTemplate({ name: SOURCE_INDEX_TEMPLATE }, { ignore: [404] });
     await kbnClient.uiSettings.unset(CONTEXT_ENGINE_ENABLED_SETTING);
   });
 
@@ -127,6 +135,23 @@ apiTest.describe.skip('context engine namespaces API', { tag: tags.stateful.clas
     });
 
     expect(response).toHaveStatusCode(400);
+  });
+
+  apiTest('rejects a source that is not a data stream', async ({ apiClient, esClient }) => {
+    const plainIndex = 'scout-test-context-engine-plain-index';
+    await esClient.indices.create({ index: plainIndex });
+
+    try {
+      const response = await apiClient.put(NAMESPACE_PATH, {
+        headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
+        responseType: 'json',
+        body: { ...namespaceBody, source: plainIndex },
+      });
+
+      expect(response).toHaveStatusCode(400);
+    } finally {
+      await esClient.indices.delete({ index: plainIndex }, { ignore: [404] });
+    }
   });
 
   apiTest('rejects a request without the required type field', async ({ apiClient }) => {

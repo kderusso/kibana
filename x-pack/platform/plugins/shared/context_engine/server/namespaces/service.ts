@@ -5,6 +5,7 @@
  * 2.0.
  */
 
+import type { estypes } from '@elastic/elasticsearch';
 import type { ElasticsearchClient, Logger } from '@kbn/core/server';
 import { isResponseError } from '@kbn/es-errors';
 import { MAX_NAMESPACES } from '../../common/constants';
@@ -44,7 +45,8 @@ export class NamespaceService {
    * update; `date_modified` is always set to the current time.
    */
   async put(namespaceId: string, properties: NamespaceProperties): Promise<'created' | 'updated'> {
-    await this.assertSourceExists(properties.source);
+    const resolved = await this.assertSourceExists(properties.source);
+    this.assertSupportedSource(properties.source, resolved);
 
     const existing = await this.findDocument(namespaceId);
     const now = new Date().toISOString();
@@ -102,31 +104,48 @@ export class NamespaceService {
   /**
    * The source must resolve to at least one existing index, alias, or data
    * stream. Namespaces are attached to user data only — system and hidden
-   * indices (dot-prefixed) are not allowed.
+   * indices (dot-prefixed) are not allowed. Returns the resolve response so
+   * callers can inspect the matched source types.
    */
-  private async assertSourceExists(source: string): Promise<void> {
+  private async assertSourceExists(source: string): Promise<estypes.IndicesResolveIndexResponse> {
     if (source.startsWith('.')) {
       throw new InvalidNamespaceSourceError(
         `Source '${source}' is not allowed: system indices cannot be attached to a namespace`
       );
     }
 
-    let exists = false;
     try {
       const resolved = await this.esClient.indices.resolveIndex({ name: source });
-      exists =
+      const exists =
         resolved.indices.length > 0 ||
         resolved.aliases.length > 0 ||
         resolved.data_streams.length > 0;
+      if (exists) {
+        return resolved;
+      }
     } catch (error) {
       if (!(isResponseError(error) && error.statusCode === 404)) {
         throw error;
       }
     }
 
-    if (!exists) {
+    throw new InvalidNamespaceSourceError(
+      `Source '${source}' does not match any existing index, index pattern, or data stream`
+    );
+  }
+
+  /**
+   * TODO: remove this restriction once regular indices and index patterns are
+   * supported as namespace sources. For now `data_stream` is the only
+   * `NamespaceType`, so the source must resolve to at least one data stream.
+   */
+  private assertSupportedSource(
+    source: string,
+    resolved: estypes.IndicesResolveIndexResponse
+  ): void {
+    if (resolved.data_streams.length === 0) {
       throw new InvalidNamespaceSourceError(
-        `Source '${source}' does not match any existing index, index pattern, or data stream`
+        `Source '${source}' must resolve to a data stream; other source types are not yet supported`
       );
     }
   }
