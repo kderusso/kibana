@@ -29,10 +29,7 @@ const namespaceBody = {
   metadata: { preferred_harnesses: ['scout'] },
 };
 
-// TODO: re-enable once the `.context-engine-*` index pattern is granted to the
-// kibana_system reserved role in Elasticsearch. Until then the storage index
-// cannot be written by the internal user and every storage-backed call 500s.
-apiTest.describe.skip('context engine namespaces API', { tag: tags.stateful.classic }, () => {
+apiTest.describe('context engine namespaces API', { tag: tags.stateful.classic }, () => {
   let adminApiCredentials: RoleApiCredentials;
   let viewerApiCredentials: RoleApiCredentials;
 
