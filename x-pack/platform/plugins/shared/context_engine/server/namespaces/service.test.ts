@@ -266,6 +266,22 @@ describe('NamespaceService', () => {
       await expect(service.put('logs', indexPatternProperties)).resolves.toBe('created');
       expect(storageClient.index).toHaveBeenCalled();
     });
+
+    it('rejects a mixed expression that includes a system index', async () => {
+      esClient.indices.resolveIndex.mockResponse({
+        indices: [
+          { name: 'logs-app', attributes: ['open'] },
+          { name: '.kibana_1', attributes: ['open', 'hidden', 'system'] },
+        ],
+        aliases: [],
+        data_streams: [],
+      });
+
+      await expect(
+        service.put('logs', { ...indexPatternProperties, source: 'logs-*,.kibana*' })
+      ).rejects.toBeInstanceOf(InvalidNamespaceSourceError);
+      expect(storageClient.index).not.toHaveBeenCalled();
+    });
   });
 
   describe('get', () => {
