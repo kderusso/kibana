@@ -6,7 +6,7 @@
  */
 
 import { errors } from '@elastic/elasticsearch';
-import type { DiagnosticResult } from '@elastic/elasticsearch';
+import type { DiagnosticResult, estypes } from '@elastic/elasticsearch';
 import { elasticsearchServiceMock, loggingSystemMock } from '@kbn/core/server/mocks';
 import { NamespaceService } from './service';
 import {
@@ -54,6 +54,16 @@ const createConflictError = () =>
     statusCode: 409,
   });
 
+const buildDataStream = (
+  overrides: Partial<estypes.IndicesDataStream> = {}
+): estypes.IndicesDataStream =>
+  ({
+    name: 'customer_support',
+    hidden: false,
+    system: false,
+    ...overrides,
+  } as estypes.IndicesDataStream);
+
 const namespaceDocument: NamespaceDocument = {
   name: 'customer_support',
   description: 'KIs representing previously answered, commonly asked questions',
@@ -74,10 +84,15 @@ describe('NamespaceService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     esClient = elasticsearchServiceMock.createElasticsearchClient();
+    // Default: a data_stream source resolves to a visible, user data stream.
+    esClient.indices.getDataStream.mockResponse({
+      data_streams: [buildDataStream()],
+    });
+    // Default: an index_pattern source resolves to a visible, user index.
     esClient.indices.resolveIndex.mockResponse({
-      indices: [],
+      indices: [{ name: 'logs-app', attributes: ['open'] }],
       aliases: [],
-      data_streams: [{ name: 'customer_support', backing_indices: [], timestamp_field: '@t' }],
+      data_streams: [],
     });
 
     storageClient = {
@@ -162,21 +177,8 @@ describe('NamespaceService', () => {
       );
     });
 
-    it('rejects a dot-prefixed (system) source without checking existence', async () => {
-      await expect(
-        service.put('customer_support', { ...properties, source: '.kibana*' })
-      ).rejects.toBeInstanceOf(InvalidNamespaceSourceError);
-
-      expect(esClient.indices.resolveIndex).not.toHaveBeenCalled();
-      expect(storageClient.index).not.toHaveBeenCalled();
-    });
-
-    it('rejects a source that does not resolve to anything', async () => {
-      esClient.indices.resolveIndex.mockResponse({
-        indices: [],
-        aliases: [],
-        data_streams: [],
-      });
+    it('rejects a data_stream source that does not resolve to a data stream', async () => {
+      esClient.indices.getDataStream.mockResponse({ data_streams: [] });
 
       await expect(service.put('customer_support', properties)).rejects.toBeInstanceOf(
         InvalidNamespaceSourceError
@@ -184,8 +186,8 @@ describe('NamespaceService', () => {
       expect(storageClient.index).not.toHaveBeenCalled();
     });
 
-    it('rejects a concrete source that does not exist (404 from resolve)', async () => {
-      esClient.indices.resolveIndex.mockRejectedValue(createNotFoundError());
+    it('rejects a data_stream source that does not exist (404 from get data stream)', async () => {
+      esClient.indices.getDataStream.mockRejectedValue(createNotFoundError());
 
       await expect(
         service.put('customer_support', { ...properties, source: 'customer_support' })
@@ -193,17 +195,25 @@ describe('NamespaceService', () => {
       expect(storageClient.index).not.toHaveBeenCalled();
     });
 
-    it('rejects a data_stream source that resolves only to an index', async () => {
-      esClient.indices.resolveIndex.mockResponse({
-        indices: [{ name: 'customer_support', attributes: [] }],
-        aliases: [],
-        data_streams: [],
+    it('rejects a system data stream source', async () => {
+      esClient.indices.getDataStream.mockResponse({
+        data_streams: [buildDataStream({ system: true })],
       });
 
       await expect(service.put('customer_support', properties)).rejects.toBeInstanceOf(
         InvalidNamespaceSourceError
       );
       expect(storageClient.index).not.toHaveBeenCalled();
+    });
+
+    it('allows a hidden but non-system data stream source', async () => {
+      esClient.indices.getDataStream.mockResponse({
+        data_streams: [buildDataStream({ hidden: true, system: false })],
+      });
+      storageClient.get.mockRejectedValue(createNotFoundError());
+
+      await expect(service.put('customer_support', properties)).resolves.toBe('created');
+      expect(storageClient.index).toHaveBeenCalled();
     });
 
     const indexPatternProperties = {
@@ -213,8 +223,41 @@ describe('NamespaceService', () => {
     };
 
     it('creates an index_pattern namespace when the pattern matches an index', async () => {
+      storageClient.get.mockRejectedValue(createNotFoundError());
+
+      await expect(service.put('logs', indexPatternProperties)).resolves.toBe('created');
+      expect(storageClient.index).toHaveBeenCalled();
+    });
+
+    it('rejects an index_pattern source that matches no index', async () => {
       esClient.indices.resolveIndex.mockResponse({
-        indices: [{ name: 'logs-app', attributes: [] }],
+        indices: [],
+        aliases: [],
+        data_streams: [{ name: 'logs', backing_indices: [], timestamp_field: '@t' }],
+      });
+
+      await expect(service.put('logs', indexPatternProperties)).rejects.toBeInstanceOf(
+        InvalidNamespaceSourceError
+      );
+      expect(storageClient.index).not.toHaveBeenCalled();
+    });
+
+    it('rejects a system index source', async () => {
+      esClient.indices.resolveIndex.mockResponse({
+        indices: [{ name: '.security-7', attributes: ['open', 'hidden', 'system'] }],
+        aliases: [],
+        data_streams: [],
+      });
+
+      await expect(service.put('logs', indexPatternProperties)).rejects.toBeInstanceOf(
+        InvalidNamespaceSourceError
+      );
+      expect(storageClient.index).not.toHaveBeenCalled();
+    });
+
+    it('allows a hidden but non-system index source', async () => {
+      esClient.indices.resolveIndex.mockResponse({
+        indices: [{ name: '.context-idx-sml-data', attributes: ['open', 'hidden'] }],
         aliases: [],
         data_streams: [],
       });
@@ -222,14 +265,6 @@ describe('NamespaceService', () => {
 
       await expect(service.put('logs', indexPatternProperties)).resolves.toBe('created');
       expect(storageClient.index).toHaveBeenCalled();
-    });
-
-    it('rejects an index_pattern source that resolves only to a data stream', async () => {
-      // The default resolveIndex mock returns a data stream with no indices.
-      await expect(service.put('logs', indexPatternProperties)).rejects.toBeInstanceOf(
-        InvalidNamespaceSourceError
-      );
-      expect(storageClient.index).not.toHaveBeenCalled();
     });
   });
 

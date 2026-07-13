@@ -35,9 +35,8 @@ const toNamespaceItem = (id: string, document: NamespaceDocument): NamespaceHttp
 
 /**
  * Manages the namespace registry stored in the hidden
- * `.contextengine-namespaces` system index. All reads and writes go
- * through the internal user; namespace permissions are enforced at the API
- * layer and are entirely separate from index permissions on backing sources.
+ * `.contextengine-namespaces` system index. Reads and writes go through the
+ * internal user; access is enforced at the API layer.
  */
 export class NamespaceService {
   private readonly esClient: ElasticsearchClient;
@@ -49,17 +48,12 @@ export class NamespaceService {
   }
 
   /**
-   * Creates or fully replaces a namespace. `date_created` is preserved on
-   * update; `date_modified` is always set to the current time.
-   *
-   * Concurrent writes to the same namespace are guarded with optimistic
-   * concurrency control: creates use `op_type: 'create'` and updates assert the
-   * `seq_no`/`primary_term` read a moment earlier. A losing writer gets a
-   * {@link NamespaceConflictError} rather than silently clobbering the winner.
+   * Creates or fully replaces a namespace, preserving `date_created` on update.
+   * Concurrent writes are guarded with optimistic concurrency control; a losing
+   * writer gets a {@link NamespaceConflictError}.
    */
   async put(namespaceId: string, properties: NamespaceProperties): Promise<'created' | 'updated'> {
-    const resolved = await this.assertSourceExists(properties.source);
-    this.assertSourceMatchesType(properties.source, properties.type, resolved);
+    await this.assertValidSource(properties.source, properties.type);
 
     const existing = await this.findDocument(namespaceId);
     const now = new Date().toISOString();
@@ -146,54 +140,67 @@ export class NamespaceService {
   }
 
   /**
-   * The source must resolve to at least one existing index or data stream.
-   * Namespaces are attached to user data only — system and hidden indices
-   * (dot-prefixed) are not allowed. Returns the resolve response so callers can
-   * inspect the matched source types.
+   * The source must exist and match the declared `type`. Only `system` sources
+   * are rejected (via the flag ES reports); `hidden` is allowed, since many
+   * legitimate customer indices are hidden.
    */
-  private async assertSourceExists(source: string): Promise<estypes.IndicesResolveIndexResponse> {
-    if (source.startsWith('.')) {
-      throw new InvalidNamespaceSourceError(
-        `Source '${source}' is not allowed: system indices cannot be attached to a namespace`
-      );
+  private async assertValidSource(source: string, type: NamespaceType): Promise<void> {
+    if (type === 'data_stream') {
+      await this.assertValidDataStreamSource(source);
+    } else {
+      await this.assertValidIndexPatternSource(source);
     }
+  }
 
+  private async assertValidDataStreamSource(source: string): Promise<void> {
+    let dataStreams: estypes.IndicesDataStream[] = [];
     try {
-      const resolved = await this.esClient.indices.resolveIndex({ name: source });
-      const exists = resolved.indices.length > 0 || resolved.data_streams.length > 0;
-      if (exists) {
-        return resolved;
-      }
+      const response = await this.esClient.indices.getDataStream({
+        name: source,
+        expand_wildcards: 'all',
+      });
+      dataStreams = response.data_streams;
     } catch (error) {
       if (!(isResponseError(error) && error.statusCode === 404)) {
         throw error;
       }
     }
 
-    throw new InvalidNamespaceSourceError(
-      `Source '${source}' does not match any existing index pattern or data stream`
-    );
-  }
-
-  /**
-   * The resolved source must match the declared `type`: `data_stream` requires
-   * a data stream, `index_pattern` requires the pattern (e.g. `foo`, `foo,bar`,
-   * `foo*`) to match at least one existing index.
-   */
-  private assertSourceMatchesType(
-    source: string,
-    type: NamespaceType,
-    resolved: estypes.IndicesResolveIndexResponse
-  ): void {
-    if (type === 'data_stream' && resolved.data_streams.length === 0) {
+    if (dataStreams.length === 0) {
       throw new InvalidNamespaceSourceError(
         `Source '${source}' must resolve to an existing data stream`
       );
     }
 
-    if (type === 'index_pattern' && resolved.indices.length === 0) {
+    const system = dataStreams.find((dataStream) => dataStream.system);
+    if (system) {
+      throw new InvalidNamespaceSourceError(
+        `Source '${source}' is not allowed: '${system.name}' is a system data stream`
+      );
+    }
+  }
+
+  private async assertValidIndexPatternSource(source: string): Promise<void> {
+    let indices: estypes.IndicesResolveIndexResolveIndexItem[] = [];
+    try {
+      const resolved = await this.esClient.indices.resolveIndex({ name: source });
+      indices = resolved.indices;
+    } catch (error) {
+      if (!(isResponseError(error) && error.statusCode === 404)) {
+        throw error;
+      }
+    }
+
+    if (indices.length === 0) {
       throw new InvalidNamespaceSourceError(
         `Source '${source}' must match at least one existing index`
+      );
+    }
+
+    const system = indices.find((index) => index.attributes.includes('system'));
+    if (system) {
+      throw new InvalidNamespaceSourceError(
+        `Source '${source}' is not allowed: '${system.name}' is a system index`
       );
     }
   }
