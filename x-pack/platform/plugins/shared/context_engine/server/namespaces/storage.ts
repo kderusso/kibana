@@ -10,7 +10,7 @@ import type { IndexStorageSettings, IStorageClient } from '@kbn/storage-adapter'
 import { StorageIndexAdapter, types } from '@kbn/storage-adapter';
 import type { NamespaceType } from '../../common/http_api/namespaces';
 
-export const namespaceIndexName = '.context-engine-namespaces';
+export const namespaceIndexName = '.contextengine-namespaces';
 
 const storageSettings = {
   name: namespaceIndexName,

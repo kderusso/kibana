@@ -101,7 +101,7 @@ describe('NamespaceService', () => {
     it('updates an existing namespace and preserves date_created', async () => {
       storageClient.get.mockResolvedValue({
         _id: 'customer_support',
-        _index: '.context-engine-namespaces',
+        _index: '.contextengine-namespaces',
         found: true,
         _source: namespaceDocument,
       });
@@ -162,7 +162,7 @@ describe('NamespaceService', () => {
     it('returns the namespace with its id', async () => {
       storageClient.get.mockResolvedValue({
         _id: 'customer_support',
-        _index: '.context-engine-namespaces',
+        _index: '.contextengine-namespaces',
         found: true,
         _source: namespaceDocument,
       });
@@ -196,7 +196,7 @@ describe('NamespaceService', () => {
           hits: [
             {
               _id: 'customer_support',
-              _index: '.context-engine-namespaces',
+              _index: '.contextengine-namespaces',
               _source: namespaceDocument,
             },
           ],

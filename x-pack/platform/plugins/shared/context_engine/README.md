@@ -6,7 +6,7 @@ Server-side plugin for the Context Engine.
 
 Namespaces attach a logical name to an existing user index, index pattern, or
 data stream. Namespace records are stored in a hidden Kibana system index
-(`.context-engine-namespaces`), separate from the backing data.
+(`.contextengine-namespaces`), separate from the backing data.
 
 | Method   | Path                                  | Description                     |
 | -------- | ------------------------------------- | ------------------------------- |

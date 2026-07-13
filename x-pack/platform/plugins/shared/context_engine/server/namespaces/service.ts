@@ -27,7 +27,7 @@ const toNamespaceItem = (id: string, document: NamespaceDocument): NamespaceHttp
 
 /**
  * Manages the namespace registry stored in the hidden
- * `.context-engine-namespaces` system index. All reads and writes go
+ * `.contextengine-namespaces` system index. All reads and writes go
  * through the internal user; namespace permissions are enforced at the API
  * layer and are entirely separate from index permissions on backing sources.
  */
