@@ -7,7 +7,7 @@
 
 /**
  * The type of source a namespace is attached to. `index_pattern` covers a
- * concrete index, an index pattern (wildcard), or an alias.
+ * concrete index name or an index pattern (e.g. `foo`, `foo,bar`, `foo*`).
  */
 export type NamespaceType = 'data_stream' | 'index_pattern';
 
