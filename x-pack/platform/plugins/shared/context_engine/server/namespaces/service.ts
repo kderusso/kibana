@@ -9,7 +9,11 @@ import type { estypes } from '@elastic/elasticsearch';
 import type { ElasticsearchClient, Logger } from '@kbn/core/server';
 import { isResponseError } from '@kbn/es-errors';
 import { MAX_NAMESPACES } from '../../common/constants';
-import type { NamespaceHttpItem, NamespaceProperties } from '../../common/http_api/namespaces';
+import type {
+  NamespaceHttpItem,
+  NamespaceProperties,
+  NamespaceType,
+} from '../../common/http_api/namespaces';
 import { InvalidNamespaceSourceError, NamespaceNotFoundError } from './errors';
 import type { NamespaceDocument, NamespaceStorageClient } from './storage';
 import { createNamespaceStorageClient } from './storage';
@@ -46,7 +50,7 @@ export class NamespaceService {
    */
   async put(namespaceId: string, properties: NamespaceProperties): Promise<'created' | 'updated'> {
     const resolved = await this.assertSourceExists(properties.source);
-    this.assertSupportedSource(properties.source, resolved);
+    this.assertSourceMatchesType(properties.source, properties.type, resolved);
 
     const existing = await this.findDocument(namespaceId);
     const now = new Date().toISOString();
@@ -102,10 +106,10 @@ export class NamespaceService {
   }
 
   /**
-   * The source must resolve to at least one existing index, alias, or data
-   * stream. Namespaces are attached to user data only — system and hidden
-   * indices (dot-prefixed) are not allowed. Returns the resolve response so
-   * callers can inspect the matched source types.
+   * The source must resolve to at least one existing index or data stream.
+   * Namespaces are attached to user data only — system and hidden indices
+   * (dot-prefixed) are not allowed. Returns the resolve response so callers can
+   * inspect the matched source types.
    */
   private async assertSourceExists(source: string): Promise<estypes.IndicesResolveIndexResponse> {
     if (source.startsWith('.')) {
@@ -116,10 +120,7 @@ export class NamespaceService {
 
     try {
       const resolved = await this.esClient.indices.resolveIndex({ name: source });
-      const exists =
-        resolved.indices.length > 0 ||
-        resolved.aliases.length > 0 ||
-        resolved.data_streams.length > 0;
+      const exists = resolved.indices.length > 0 || resolved.data_streams.length > 0;
       if (exists) {
         return resolved;
       }
@@ -130,22 +131,29 @@ export class NamespaceService {
     }
 
     throw new InvalidNamespaceSourceError(
-      `Source '${source}' does not match any existing index, index pattern, or data stream`
+      `Source '${source}' does not match any existing index pattern or data stream`
     );
   }
 
   /**
-   * TODO: remove this restriction once regular indices and index patterns are
-   * supported as namespace sources. For now `data_stream` is the only
-   * `NamespaceType`, so the source must resolve to at least one data stream.
+   * The resolved source must match the declared `type`: `data_stream` requires
+   * a data stream, `index_pattern` requires the pattern (e.g. `foo`, `foo,bar`,
+   * `foo*`) to match at least one existing index.
    */
-  private assertSupportedSource(
+  private assertSourceMatchesType(
     source: string,
+    type: NamespaceType,
     resolved: estypes.IndicesResolveIndexResponse
   ): void {
-    if (resolved.data_streams.length === 0) {
+    if (type === 'data_stream' && resolved.data_streams.length === 0) {
       throw new InvalidNamespaceSourceError(
-        `Source '${source}' must resolve to a data stream; other source types are not yet supported`
+        `Source '${source}' must resolve to an existing data stream`
+      );
+    }
+
+    if (type === 'index_pattern' && resolved.indices.length === 0) {
+      throw new InvalidNamespaceSourceError(
+        `Source '${source}' must match at least one existing index`
       );
     }
   }

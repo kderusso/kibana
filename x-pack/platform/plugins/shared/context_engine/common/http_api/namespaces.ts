@@ -6,10 +6,10 @@
  */
 
 /**
- * The type of index a namespace is attached to. The only supported
- * type for now is `data_stream`.
+ * The type of source a namespace is attached to. `index_pattern` covers a
+ * concrete index, an index pattern (wildcard), or an alias.
  */
-export type NamespaceType = 'data_stream';
+export type NamespaceType = 'data_stream' | 'index_pattern';
 
 export interface NamespaceProperties {
   name: string;

@@ -61,15 +61,18 @@ const putNamespaceBodySchema = schema.object({
       meta: { description: 'Human-readable description of the namespace.' },
     })
   ),
-  type: schema.oneOf([schema.literal('data_stream')], {
-    meta: { description: 'The type of the backing source. Only `data_stream` is supported.' },
+  type: schema.oneOf([schema.literal('data_stream'), schema.literal('index_pattern')], {
+    meta: {
+      description:
+        'The type of the backing source. `data_stream` for a data stream, or `index_pattern` for an index pattern.',
+    },
   }),
   source: schema.string({
     minLength: 1,
     maxLength: MAX_NAMESPACE_SOURCE_LENGTH,
     meta: {
       description:
-        'The index, index pattern, or data stream the namespace is attached to. Must already exist; system indices are not allowed.',
+        'The data stream or index pattern (e.g. `foo`, `foo,bar`, `foo*`) the namespace is attached to. Must already exist and match `type`; system indices are not allowed.',
     },
   }),
   metadata: schema.maybe(
