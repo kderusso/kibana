@@ -9,7 +9,11 @@ import { errors } from '@elastic/elasticsearch';
 import type { DiagnosticResult } from '@elastic/elasticsearch';
 import { elasticsearchServiceMock, loggingSystemMock } from '@kbn/core/server/mocks';
 import { NamespaceService } from './service';
-import { InvalidNamespaceSourceError, NamespaceNotFoundError } from './errors';
+import {
+  InvalidNamespaceSourceError,
+  NamespaceConflictError,
+  NamespaceNotFoundError,
+} from './errors';
 import type { NamespaceDocument, NamespaceStorageClient } from './storage';
 import { createNamespaceStorageClient } from './storage';
 
@@ -33,6 +37,21 @@ const createNotFoundError = () =>
     warnings: [],
     body: 'resource_not_found_exception',
     statusCode: 404,
+  });
+
+const createConflictError = () =>
+  new errors.ResponseError({
+    meta: {
+      aborted: false,
+      attempts: 1,
+      connection: null,
+      context: null,
+      name: 'version_conflict_engine_exception',
+      request: {} as unknown as DiagnosticResult['meta']['request'],
+    },
+    warnings: [],
+    body: 'version_conflict_engine_exception',
+    statusCode: 409,
   });
 
 const namespaceDocument: NamespaceDocument = {
@@ -83,13 +102,14 @@ describe('NamespaceService', () => {
       source: 'customer_support*',
     };
 
-    it('creates a namespace when none exists', async () => {
+    it('creates a namespace with op_type create when none exists', async () => {
       storageClient.get.mockRejectedValue(createNotFoundError());
 
       await expect(service.put('customer_support', properties)).resolves.toBe('created');
 
       expect(storageClient.index).toHaveBeenCalledWith({
         id: 'customer_support',
+        op_type: 'create',
         document: expect.objectContaining({
           ...properties,
           date_created: expect.any(String),
@@ -98,19 +118,48 @@ describe('NamespaceService', () => {
       });
     });
 
-    it('updates an existing namespace and preserves date_created', async () => {
+    it('updates an existing namespace, preserving date_created and asserting seq_no', async () => {
       storageClient.get.mockResolvedValue({
         _id: 'customer_support',
         _index: '.contextengine-namespaces',
         found: true,
+        _seq_no: 7,
+        _primary_term: 2,
         _source: namespaceDocument,
       });
 
       await expect(service.put('customer_support', properties)).resolves.toBe('updated');
 
-      const [{ document }] = storageClient.index.mock.calls[0];
-      expect(document?.date_created).toBe(namespaceDocument.date_created);
-      expect(document?.date_modified).not.toBe(namespaceDocument.date_modified);
+      const [indexArgs] = storageClient.index.mock.calls[0];
+      expect(indexArgs.if_seq_no).toBe(7);
+      expect(indexArgs.if_primary_term).toBe(2);
+      expect(indexArgs.document?.date_created).toBe(namespaceDocument.date_created);
+      expect(indexArgs.document?.date_modified).not.toBe(namespaceDocument.date_modified);
+    });
+
+    it('throws NamespaceConflictError when a concurrent create wins (409)', async () => {
+      storageClient.get.mockRejectedValue(createNotFoundError());
+      storageClient.index.mockRejectedValue(createConflictError());
+
+      await expect(service.put('customer_support', properties)).rejects.toBeInstanceOf(
+        NamespaceConflictError
+      );
+    });
+
+    it('throws NamespaceConflictError when a concurrent update wins (409)', async () => {
+      storageClient.get.mockResolvedValue({
+        _id: 'customer_support',
+        _index: '.contextengine-namespaces',
+        found: true,
+        _seq_no: 7,
+        _primary_term: 2,
+        _source: namespaceDocument,
+      });
+      storageClient.index.mockRejectedValue(createConflictError());
+
+      await expect(service.put('customer_support', properties)).rejects.toBeInstanceOf(
+        NamespaceConflictError
+      );
     });
 
     it('rejects a dot-prefixed (system) source without checking existence', async () => {

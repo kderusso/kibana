@@ -14,7 +14,11 @@ import type {
   NamespaceProperties,
   NamespaceType,
 } from '../../common/http_api/namespaces';
-import { InvalidNamespaceSourceError, NamespaceNotFoundError } from './errors';
+import {
+  InvalidNamespaceSourceError,
+  NamespaceConflictError,
+  NamespaceNotFoundError,
+} from './errors';
 import type { NamespaceDocument, NamespaceStorageClient } from './storage';
 import { createNamespaceStorageClient } from './storage';
 
@@ -47,6 +51,11 @@ export class NamespaceService {
   /**
    * Creates or fully replaces a namespace. `date_created` is preserved on
    * update; `date_modified` is always set to the current time.
+   *
+   * Concurrent writes to the same namespace are guarded with optimistic
+   * concurrency control: creates use `op_type: 'create'` and updates assert the
+   * `seq_no`/`primary_term` read a moment earlier. A losing writer gets a
+   * {@link NamespaceConflictError} rather than silently clobbering the winner.
    */
   async put(namespaceId: string, properties: NamespaceProperties): Promise<'created' | 'updated'> {
     const resolved = await this.assertSourceExists(properties.source);
@@ -56,20 +65,37 @@ export class NamespaceService {
     const now = new Date().toISOString();
     const document: NamespaceDocument = {
       ...properties,
-      date_created: existing?.date_created ?? now,
+      date_created: existing?.document.date_created ?? now,
       date_modified: now,
     };
 
-    await this.storageClient.index({ id: namespaceId, document });
-    return existing ? 'updated' : 'created';
+    try {
+      if (existing) {
+        await this.storageClient.index({
+          id: namespaceId,
+          document,
+          if_seq_no: existing.seqNo,
+          if_primary_term: existing.primaryTerm,
+        });
+        return 'updated';
+      }
+
+      await this.storageClient.index({ id: namespaceId, document, op_type: 'create' });
+      return 'created';
+    } catch (error) {
+      if (isResponseError(error) && error.statusCode === 409) {
+        throw new NamespaceConflictError(namespaceId);
+      }
+      throw error;
+    }
   }
 
   async get(namespaceId: string): Promise<NamespaceHttpItem> {
-    const document = await this.findDocument(namespaceId);
-    if (!document) {
+    const existing = await this.findDocument(namespaceId);
+    if (!existing) {
       throw new NamespaceNotFoundError(namespaceId);
     }
-    return toNamespaceItem(namespaceId, document);
+    return toNamespaceItem(namespaceId, existing.document);
   }
 
   async list(): Promise<NamespaceHttpItem[]> {
@@ -93,10 +119,24 @@ export class NamespaceService {
     }
   }
 
-  private async findDocument(namespaceId: string): Promise<NamespaceDocument | undefined> {
+  private async findDocument(namespaceId: string): Promise<
+    | {
+        document: NamespaceDocument;
+        seqNo?: number;
+        primaryTerm?: number;
+      }
+    | undefined
+  > {
     try {
       const response = await this.storageClient.get({ id: namespaceId });
-      return response._source ?? undefined;
+      if (!response.found || !response._source) {
+        return undefined;
+      }
+      return {
+        document: response._source,
+        seqNo: response._seq_no,
+        primaryTerm: response._primary_term,
+      };
     } catch (error) {
       if (isResponseError(error) && error.statusCode === 404) {
         return undefined;

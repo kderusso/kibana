@@ -10,7 +10,11 @@ import { httpServerMock } from '@kbn/core/server/mocks';
 import { registerNamespaceRoutes } from './namespaces';
 import { namespaceByIdPath, namespacePath } from '../../common/constants';
 import { apiPrivileges } from '../../common/features';
-import { InvalidNamespaceSourceError, NamespaceNotFoundError } from '../namespaces/errors';
+import {
+  InvalidNamespaceSourceError,
+  NamespaceConflictError,
+  NamespaceNotFoundError,
+} from '../namespaces/errors';
 import type { NamespaceService } from '../namespaces/service';
 
 interface RegisteredRoute {
@@ -154,6 +158,16 @@ describe('namespaces routes', () => {
           message:
             "Source 'customer_support*' does not match any existing index, index pattern, or data stream",
         },
+      });
+    });
+
+    it('returns 409 when the namespace is modified concurrently', async () => {
+      namespaceService.put.mockRejectedValue(new NamespaceConflictError('customer_support'));
+
+      await callRoute('PUT', namespaceByIdPath, putRequest);
+
+      expect(response.conflict).toHaveBeenCalledWith({
+        body: { message: "Namespace 'customer_support' was modified concurrently; please retry" },
       });
     });
   });

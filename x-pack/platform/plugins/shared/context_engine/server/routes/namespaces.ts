@@ -25,7 +25,11 @@ import type {
   PutNamespaceResponse,
 } from '../../common/http_api/namespaces';
 import { apiPrivileges } from '../../common/features';
-import { InvalidNamespaceSourceError, NamespaceNotFoundError } from '../namespaces/errors';
+import {
+  InvalidNamespaceSourceError,
+  NamespaceConflictError,
+  NamespaceNotFoundError,
+} from '../namespaces/errors';
 import type { NamespaceService } from '../namespaces/service';
 
 const API_VERSION = '2023-10-31';
@@ -99,6 +103,9 @@ const handleNamespaceError = (error: unknown, response: KibanaResponseFactory) =
   }
   if (error instanceof NamespaceNotFoundError) {
     return response.notFound({ body: { message: error.message } });
+  }
+  if (error instanceof NamespaceConflictError) {
+    return response.conflict({ body: { message: error.message } });
   }
   throw error;
 };
