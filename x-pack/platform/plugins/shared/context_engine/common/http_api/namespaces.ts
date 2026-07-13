@@ -6,17 +6,15 @@
  */
 
 /**
- * The type of index a namespace is attached to. For M1 the only supported
- * type is `data_stream`.
+ * The type of index a namespace is attached to. The only supported
+ * type for now is `data_stream`.
  */
 export type NamespaceType = 'data_stream';
 
 export interface NamespaceProperties {
-  /** Display name for the namespace. Separate from the id so it can be renamed. */
   name: string;
   description?: string;
   type: NamespaceType;
-  /** The index, index pattern, or data stream this namespace is attached to. */
   source: string;
   metadata?: Record<string, unknown>;
 }

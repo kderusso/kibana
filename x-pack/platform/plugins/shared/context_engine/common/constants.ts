@@ -11,8 +11,8 @@ export const namespacePath = `${publicApiPath}/namespace`;
 export const namespaceByIdPath = `${namespacePath}/{namespaceId}`;
 
 /**
- * Hard limit on the number of namespaces returned by the list API. Filtering
- * and pagination may be added in future iterations.
+ * Hard limit on the number of namespaces returned by the list API.
+ * TODO: Remove this limit (or make it configurable) and add pagination support to List API.
  */
 export const MAX_NAMESPACES = 100;
 
