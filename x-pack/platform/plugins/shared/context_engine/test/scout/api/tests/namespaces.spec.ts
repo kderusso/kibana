@@ -124,11 +124,45 @@ apiTest.describe('context engine namespaces API', { tag: tags.stateful.classic }
     expect(response).toHaveStatusCode(400);
   });
 
-  apiTest('rejects a system index as source', async ({ apiClient }) => {
+  apiTest('creates and reads an index_pattern namespace', async ({ apiClient, esClient }) => {
+    const indexPatternNamespaceId = 'scout_test_index_pattern_namespace';
+    const indexPatternPath = `api/context_engine/namespace/${indexPatternNamespaceId}`;
+    const sourceIndex = 'scout-test-context-engine-index';
+    await esClient.indices.create({ index: sourceIndex });
+
+    try {
+      const createResponse = await apiClient.put(indexPatternPath, {
+        headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
+        responseType: 'json',
+        body: { name: indexPatternNamespaceId, type: 'index_pattern', source: `${sourceIndex}*` },
+      });
+      expect(createResponse).toHaveStatusCode(201);
+      expect(createResponse.body).toStrictEqual({ status: 'created' });
+
+      const getResponse = await apiClient.get(indexPatternPath, {
+        headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
+        responseType: 'json',
+      });
+      expect(getResponse).toHaveStatusCode(200);
+      expect(getResponse.body).toMatchObject({
+        id: indexPatternNamespaceId,
+        type: 'index_pattern',
+        source: `${sourceIndex}*`,
+      });
+    } finally {
+      await apiClient.delete(indexPatternPath, {
+        headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
+        responseType: 'json',
+      });
+      await esClient.indices.delete({ index: sourceIndex }, { ignore: [404] });
+    }
+  });
+
+  apiTest('rejects a system index as an index_pattern source', async ({ apiClient }) => {
     const response = await apiClient.put(NAMESPACE_PATH, {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
-      body: { ...namespaceBody, source: '.kibana*' },
+      body: { ...namespaceBody, type: 'index_pattern', source: '.kibana*' },
     });
 
     expect(response).toHaveStatusCode(400);
