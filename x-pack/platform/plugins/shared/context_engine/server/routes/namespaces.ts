@@ -90,6 +90,7 @@ const withContextEngineFeatureFlag =
   <P, Q, B>(handler: RequestHandler<P, Q, B>): RequestHandler<P, Q, B> =>
   async (ctx, request, response) => {
     const { uiSettings } = await ctx.core;
+    // Registered by the agent_context_layer plugin (server/ui_settings.ts).
     const isEnabled = await uiSettings.client.get<boolean>(CONTEXT_ENGINE_ENABLED_SETTING_ID);
     if (!isEnabled) {
       return response.notFound();
@@ -125,7 +126,7 @@ export const registerNamespaceRoutes = ({
       access: 'public',
       summary: 'Create or update a namespace',
       description:
-        'Creates or updates a namespace record attached to an existing index, index pattern, or data stream.',
+        'Creates or updates a namespace record attached to an existing data stream or index pattern.',
       options: {
         tags: ['oas-tag:context engine'],
         availability: { stability: 'experimental' },
