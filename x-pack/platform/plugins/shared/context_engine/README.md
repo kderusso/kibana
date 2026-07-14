@@ -21,7 +21,8 @@ Notes:
   (disabled by default). All routes return 404 while the setting is off.
 - The source must already exist when creating or updating an AI index and must
   match the declared `type`: `data_stream` for a data stream, or `index_pattern`
-  for an index pattern (e.g. `foo`, `foo,bar`, `foo*`). System indices are not
-  allowed.
+  for an index pattern (e.g. `.context-foo`, `.context-foo*`). Every resolved
+  source index (or data stream) must start with `.context-`; system indices are
+  not allowed.
 - Deleting an AI index deletes **only** the AI index entry. Backing indices
   are left untouched and must be removed with the Delete index API if desired.

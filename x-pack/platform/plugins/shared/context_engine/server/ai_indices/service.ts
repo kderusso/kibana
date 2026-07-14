@@ -18,6 +18,12 @@ import { InvalidAiIndexSourceError, AiIndexConflictError, AiIndexNotFoundError }
 import type { AiIndexDocument, AiIndexStorageClient } from './storage';
 import { createAiIndexStorageClient } from './storage';
 
+/**
+ * AI index sources must be context-engine indices, which follow the `.context-`
+ * naming convention.
+ */
+const SOURCE_INDEX_PREFIX = '.context-';
+
 const toAiIndexItem = (id: string, document: AiIndexDocument): AiIndexHttpItem => ({
   id,
   name: document.name,
@@ -166,6 +172,15 @@ export class AiIndexService {
       );
     }
 
+    const invalidPrefix = dataStreams.find(
+      (dataStream) => !dataStream.name.startsWith(SOURCE_INDEX_PREFIX)
+    );
+    if (invalidPrefix) {
+      throw new InvalidAiIndexSourceError(
+        `Source '${source}' is not allowed: '${invalidPrefix.name}' must start with '${SOURCE_INDEX_PREFIX}'`
+      );
+    }
+
     const system = dataStreams.find((dataStream) => dataStream.system);
     if (system) {
       throw new InvalidAiIndexSourceError(
@@ -188,6 +203,13 @@ export class AiIndexService {
     if (indices.length === 0) {
       throw new InvalidAiIndexSourceError(
         `Source '${source}' must match at least one existing index`
+      );
+    }
+
+    const invalidPrefix = indices.find((index) => !index.name.startsWith(SOURCE_INDEX_PREFIX));
+    if (invalidPrefix) {
+      throw new InvalidAiIndexSourceError(
+        `Source '${source}' is not allowed: '${invalidPrefix.name}' must start with '${SOURCE_INDEX_PREFIX}'`
       );
     }
 

@@ -54,7 +54,7 @@ const buildDataStream = (
   overrides: Partial<estypes.IndicesDataStream> = {}
 ): estypes.IndicesDataStream =>
   ({
-    name: 'customer_support',
+    name: '.context-customer_support',
     hidden: false,
     system: false,
     ...overrides,
@@ -64,7 +64,7 @@ const aiIndexDocument: AiIndexDocument = {
   name: 'customer_support',
   description: 'KIs representing previously answered, commonly asked questions',
   type: 'data_stream',
-  source: 'customer_support*',
+  source: '.context-customer_support*',
   date_created: '2026-07-08T12:10:30.000Z',
   date_modified: '2026-07-08T12:10:30.000Z',
   metadata: { preferred_harnesses: ['langsmith'] },
@@ -84,7 +84,7 @@ describe('AiIndexService', () => {
     });
     // Default: an index_pattern source resolves to a visible, user index.
     esClient.indices.resolveIndex.mockResponse({
-      indices: [{ name: 'logs-app', attributes: ['open'] }],
+      indices: [{ name: '.context-logs-app', attributes: ['open'] }],
       aliases: [],
       data_streams: [],
     });
@@ -108,7 +108,7 @@ describe('AiIndexService', () => {
       name: 'customer_support',
       description: 'KIs representing previously answered, commonly asked questions',
       type: 'data_stream' as const,
-      source: 'customer_support*',
+      source: '.context-customer_support*',
     };
 
     it('creates an AI index with op_type create when none exists', async () => {
@@ -184,7 +184,7 @@ describe('AiIndexService', () => {
       esClient.indices.getDataStream.mockRejectedValue(createNotFoundError());
 
       await expect(
-        service.put('customer_support', { ...properties, source: 'customer_support' })
+        service.put('customer_support', { ...properties, source: '.context-customer_support' })
       ).rejects.toBeInstanceOf(InvalidAiIndexSourceError);
       expect(storageClient.index).not.toHaveBeenCalled();
     });
@@ -210,10 +210,21 @@ describe('AiIndexService', () => {
       expect(storageClient.index).toHaveBeenCalled();
     });
 
+    it('rejects a data_stream source not prefixed with .context-', async () => {
+      esClient.indices.getDataStream.mockResponse({
+        data_streams: [buildDataStream({ name: 'customer_support' })],
+      });
+
+      await expect(service.put('customer_support', properties)).rejects.toBeInstanceOf(
+        InvalidAiIndexSourceError
+      );
+      expect(storageClient.index).not.toHaveBeenCalled();
+    });
+
     const indexPatternProperties = {
       ...properties,
       type: 'index_pattern' as const,
-      source: 'logs-*',
+      source: '.context-logs-*',
     };
 
     it('creates an index_pattern AI index when the pattern matches an index', async () => {
@@ -238,7 +249,7 @@ describe('AiIndexService', () => {
 
     it('rejects a system index source', async () => {
       esClient.indices.resolveIndex.mockResponse({
-        indices: [{ name: '.security-7', attributes: ['open', 'hidden', 'system'] }],
+        indices: [{ name: '.context-security', attributes: ['open', 'hidden', 'system'] }],
         aliases: [],
         data_streams: [],
       });
@@ -264,16 +275,32 @@ describe('AiIndexService', () => {
     it('rejects a mixed expression that includes a system index', async () => {
       esClient.indices.resolveIndex.mockResponse({
         indices: [
-          { name: 'logs-app', attributes: ['open'] },
-          { name: '.kibana_1', attributes: ['open', 'hidden', 'system'] },
+          { name: '.context-logs-app', attributes: ['open'] },
+          { name: '.context-kibana', attributes: ['open', 'hidden', 'system'] },
         ],
         aliases: [],
         data_streams: [],
       });
 
       await expect(
-        service.put('logs', { ...indexPatternProperties, source: 'logs-*,.kibana*' })
+        service.put('logs', {
+          ...indexPatternProperties,
+          source: '.context-logs-*,.context-kibana*',
+        })
       ).rejects.toBeInstanceOf(InvalidAiIndexSourceError);
+      expect(storageClient.index).not.toHaveBeenCalled();
+    });
+
+    it('rejects an index_pattern source not prefixed with .context-', async () => {
+      esClient.indices.resolveIndex.mockResponse({
+        indices: [{ name: 'logs-app', attributes: ['open'] }],
+        aliases: [],
+        data_streams: [],
+      });
+
+      await expect(service.put('logs', indexPatternProperties)).rejects.toBeInstanceOf(
+        InvalidAiIndexSourceError
+      );
       expect(storageClient.index).not.toHaveBeenCalled();
     });
   });
