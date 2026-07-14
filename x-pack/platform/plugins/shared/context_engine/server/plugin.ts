@@ -14,8 +14,8 @@ import type {
   ContextEngineStartDependencies,
 } from './types';
 import { registerFeatures } from './features';
-import { registerNamespaceRoutes } from './routes/namespaces';
-import { NamespaceService } from './namespaces/service';
+import { registerAiIndexRoutes } from './routes/ai_indices';
+import { AiIndexService } from './ai_indices/service';
 
 export class ContextEnginePlugin
   implements
@@ -27,7 +27,7 @@ export class ContextEnginePlugin
     >
 {
   private logger: Logger;
-  private namespaceService?: NamespaceService;
+  private aiIndexService?: AiIndexService;
 
   constructor(context: PluginInitializerContext) {
     this.logger = context.logger.get();
@@ -40,13 +40,13 @@ export class ContextEnginePlugin
     registerFeatures({ features: setupDeps.features });
 
     const router = coreSetup.http.createRouter();
-    registerNamespaceRoutes({
+    registerAiIndexRoutes({
       router,
-      getNamespaceService: () => {
-        if (!this.namespaceService) {
-          throw new Error('Namespace service not available — plugin has not started');
+      getAiIndexService: () => {
+        if (!this.aiIndexService) {
+          throw new Error('AI index service not available — plugin has not started');
         }
-        return this.namespaceService;
+        return this.aiIndexService;
       },
     });
 
@@ -54,9 +54,9 @@ export class ContextEnginePlugin
   }
 
   start(coreStart: CoreStart): ContextEnginePluginStart {
-    this.namespaceService = new NamespaceService({
+    this.aiIndexService = new AiIndexService({
       esClient: coreStart.elasticsearch.client.asInternalUser,
-      logger: this.logger.get('namespaces'),
+      logger: this.logger.get('ai_indices'),
     });
 
     return {};

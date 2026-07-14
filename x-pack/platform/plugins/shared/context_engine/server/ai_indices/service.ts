@@ -8,21 +8,17 @@
 import type { estypes } from '@elastic/elasticsearch';
 import type { ElasticsearchClient, Logger } from '@kbn/core/server';
 import { isResponseError } from '@kbn/es-errors';
-import { MAX_NAMESPACES } from '../../common/constants';
+import { MAX_AI_INDICES } from '../../common/constants';
 import type {
-  NamespaceHttpItem,
-  NamespaceProperties,
-  NamespaceType,
-} from '../../common/http_api/namespaces';
-import {
-  InvalidNamespaceSourceError,
-  NamespaceConflictError,
-  NamespaceNotFoundError,
-} from './errors';
-import type { NamespaceDocument, NamespaceStorageClient } from './storage';
-import { createNamespaceStorageClient } from './storage';
+  AiIndexHttpItem,
+  AiIndexProperties,
+  AiIndexType,
+} from '../../common/http_api/ai_indices';
+import { InvalidAiIndexSourceError, AiIndexConflictError, AiIndexNotFoundError } from './errors';
+import type { AiIndexDocument, AiIndexStorageClient } from './storage';
+import { createAiIndexStorageClient } from './storage';
 
-const toNamespaceItem = (id: string, document: NamespaceDocument): NamespaceHttpItem => ({
+const toAiIndexItem = (id: string, document: AiIndexDocument): AiIndexHttpItem => ({
   id,
   name: document.name,
   ...(document.description !== undefined && { description: document.description }),
@@ -34,30 +30,30 @@ const toNamespaceItem = (id: string, document: NamespaceDocument): NamespaceHttp
 });
 
 /**
- * Manages the namespace registry stored in the hidden
- * `.contextengine-namespaces` system index. Reads and writes go through the
+ * Manages the AI index registry stored in the hidden
+ * `.contextengine-ai-indices` system index. Reads and writes go through the
  * internal user; access is enforced at the API layer.
  */
-export class NamespaceService {
+export class AiIndexService {
   private readonly esClient: ElasticsearchClient;
-  private readonly storageClient: NamespaceStorageClient;
+  private readonly storageClient: AiIndexStorageClient;
 
   constructor({ esClient, logger }: { esClient: ElasticsearchClient; logger: Logger }) {
     this.esClient = esClient;
-    this.storageClient = createNamespaceStorageClient({ esClient, logger });
+    this.storageClient = createAiIndexStorageClient({ esClient, logger });
   }
 
   /**
-   * Creates or fully replaces a namespace, preserving `date_created` on update.
+   * Creates or fully replaces an AI index, preserving `date_created` on update.
    * Concurrent writes are guarded with optimistic concurrency control; a losing
-   * writer gets a {@link NamespaceConflictError}.
+   * writer gets a {@link AiIndexConflictError}.
    */
-  async put(namespaceId: string, properties: NamespaceProperties): Promise<'created' | 'updated'> {
+  async put(aiIndexId: string, properties: AiIndexProperties): Promise<'created' | 'updated'> {
     await this.assertValidSource(properties.source, properties.type);
 
-    const existing = await this.findDocument(namespaceId);
+    const existing = await this.findDocument(aiIndexId);
     const now = new Date().toISOString();
-    const document: NamespaceDocument = {
+    const document: AiIndexDocument = {
       ...properties,
       date_created: existing?.document.date_created ?? now,
       date_modified: now,
@@ -66,7 +62,7 @@ export class NamespaceService {
     try {
       if (existing) {
         await this.storageClient.index({
-          id: namespaceId,
+          id: aiIndexId,
           document,
           if_seq_no: existing.seqNo,
           if_primary_term: existing.primaryTerm,
@@ -74,55 +70,53 @@ export class NamespaceService {
         return 'updated';
       }
 
-      await this.storageClient.index({ id: namespaceId, document, op_type: 'create' });
+      await this.storageClient.index({ id: aiIndexId, document, op_type: 'create' });
       return 'created';
     } catch (error) {
       if (isResponseError(error) && error.statusCode === 409) {
-        throw new NamespaceConflictError(namespaceId);
+        throw new AiIndexConflictError(aiIndexId);
       }
       throw error;
     }
   }
 
-  async get(namespaceId: string): Promise<NamespaceHttpItem> {
-    const existing = await this.findDocument(namespaceId);
+  async get(aiIndexId: string): Promise<AiIndexHttpItem> {
+    const existing = await this.findDocument(aiIndexId);
     if (!existing) {
-      throw new NamespaceNotFoundError(namespaceId);
+      throw new AiIndexNotFoundError(aiIndexId);
     }
-    return toNamespaceItem(namespaceId, existing.document);
+    return toAiIndexItem(aiIndexId, existing.document);
   }
 
-  async list(): Promise<NamespaceHttpItem[]> {
+  async list(): Promise<AiIndexHttpItem[]> {
     const response = await this.storageClient.search({
-      size: MAX_NAMESPACES,
+      size: MAX_AI_INDICES,
       track_total_hits: false,
       sort: [{ name: 'asc' }],
     });
-    return response.hits.hits.map((hit) =>
-      toNamespaceItem(hit._id!, hit._source as NamespaceDocument)
-    );
+    return response.hits.hits.map((hit) => toAiIndexItem(hit._id!, hit._source as AiIndexDocument));
   }
 
   /**
-   * Deletes the namespace entry only; backing indices are left untouched.
+   * Deletes the AI index entry only; backing indices are left untouched.
    */
-  async delete(namespaceId: string): Promise<void> {
-    const { result } = await this.storageClient.delete({ id: namespaceId });
+  async delete(aiIndexId: string): Promise<void> {
+    const { result } = await this.storageClient.delete({ id: aiIndexId });
     if (result === 'not_found') {
-      throw new NamespaceNotFoundError(namespaceId);
+      throw new AiIndexNotFoundError(aiIndexId);
     }
   }
 
-  private async findDocument(namespaceId: string): Promise<
+  private async findDocument(aiIndexId: string): Promise<
     | {
-        document: NamespaceDocument;
+        document: AiIndexDocument;
         seqNo?: number;
         primaryTerm?: number;
       }
     | undefined
   > {
     try {
-      const response = await this.storageClient.get({ id: namespaceId });
+      const response = await this.storageClient.get({ id: aiIndexId });
       if (!response.found || !response._source) {
         return undefined;
       }
@@ -144,7 +138,7 @@ export class NamespaceService {
    * are rejected (via the flag ES reports); `hidden` is allowed, since many
    * legitimate customer indices are hidden.
    */
-  private async assertValidSource(source: string, type: NamespaceType): Promise<void> {
+  private async assertValidSource(source: string, type: AiIndexType): Promise<void> {
     if (type === 'data_stream') {
       await this.assertValidDataStreamSource(source);
     } else {
@@ -167,14 +161,14 @@ export class NamespaceService {
     }
 
     if (dataStreams.length === 0) {
-      throw new InvalidNamespaceSourceError(
+      throw new InvalidAiIndexSourceError(
         `Source '${source}' must resolve to an existing data stream`
       );
     }
 
     const system = dataStreams.find((dataStream) => dataStream.system);
     if (system) {
-      throw new InvalidNamespaceSourceError(
+      throw new InvalidAiIndexSourceError(
         `Source '${source}' is not allowed: '${system.name}' is a system data stream`
       );
     }
@@ -192,14 +186,14 @@ export class NamespaceService {
     }
 
     if (indices.length === 0) {
-      throw new InvalidNamespaceSourceError(
+      throw new InvalidAiIndexSourceError(
         `Source '${source}' must match at least one existing index`
       );
     }
 
     const system = indices.find((index) => index.attributes.includes('system'));
     if (system) {
-      throw new InvalidNamespaceSourceError(
+      throw new InvalidAiIndexSourceError(
         `Source '${source}' is not allowed: '${system.name}' is a system index`
       );
     }

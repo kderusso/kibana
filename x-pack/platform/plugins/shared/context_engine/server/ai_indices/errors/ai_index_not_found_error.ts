@@ -5,9 +5,9 @@
  * 2.0.
  */
 
-export class NamespaceNotFoundError extends Error {
-  constructor(namespaceId: string) {
-    super(`Namespace '${namespaceId}' not found`);
-    this.name = 'NamespaceNotFoundError';
+export class AiIndexNotFoundError extends Error {
+  constructor(aiIndexId: string) {
+    super(`AI index '${aiIndexId}' not found`);
+    this.name = 'AiIndexNotFoundError';
   }
 }

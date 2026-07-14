@@ -8,12 +8,12 @@
 import type { ElasticsearchClient, Logger } from '@kbn/core/server';
 import type { IndexStorageSettings, IStorageClient } from '@kbn/storage-adapter';
 import { StorageIndexAdapter, types } from '@kbn/storage-adapter';
-import type { NamespaceType } from '../../common/http_api/namespaces';
+import type { AiIndexType } from '../../common/http_api/ai_indices';
 
-export const namespaceIndexName = '.contextengine-namespaces';
+export const aiIndicesIndexName = '.contextengine-ai-indices';
 
 const storageSettings = {
-  name: namespaceIndexName,
+  name: aiIndicesIndexName,
   schema: {
     properties: {
       name: types.keyword({}),
@@ -27,28 +27,28 @@ const storageSettings = {
   },
 } satisfies IndexStorageSettings;
 
-export interface NamespaceDocument {
+export interface AiIndexDocument {
   name: string;
   description?: string;
   date_created: string;
   date_modified: string;
-  type: NamespaceType;
+  type: AiIndexType;
   source: string;
   metadata?: Record<string, unknown>;
 }
 
-export type NamespaceStorageSettings = typeof storageSettings;
+export type AiIndexStorageSettings = typeof storageSettings;
 
-export type NamespaceStorageClient = IStorageClient<NamespaceStorageSettings, NamespaceDocument>;
+export type AiIndexStorageClient = IStorageClient<AiIndexStorageSettings, AiIndexDocument>;
 
-export const createNamespaceStorageClient = ({
+export const createAiIndexStorageClient = ({
   esClient,
   logger,
 }: {
   esClient: ElasticsearchClient;
   logger: Logger;
-}): NamespaceStorageClient => {
-  const adapter = new StorageIndexAdapter<NamespaceStorageSettings, NamespaceDocument>(
+}): AiIndexStorageClient => {
+  const adapter = new StorageIndexAdapter<AiIndexStorageSettings, AiIndexDocument>(
     esClient,
     logger,
     storageSettings

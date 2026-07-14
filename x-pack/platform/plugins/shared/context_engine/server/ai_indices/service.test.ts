@@ -8,21 +8,17 @@
 import { errors } from '@elastic/elasticsearch';
 import type { DiagnosticResult, estypes } from '@elastic/elasticsearch';
 import { elasticsearchServiceMock, loggingSystemMock } from '@kbn/core/server/mocks';
-import { NamespaceService } from './service';
-import {
-  InvalidNamespaceSourceError,
-  NamespaceConflictError,
-  NamespaceNotFoundError,
-} from './errors';
-import type { NamespaceDocument, NamespaceStorageClient } from './storage';
-import { createNamespaceStorageClient } from './storage';
+import { AiIndexService } from './service';
+import { InvalidAiIndexSourceError, AiIndexConflictError, AiIndexNotFoundError } from './errors';
+import type { AiIndexDocument, AiIndexStorageClient } from './storage';
+import { createAiIndexStorageClient } from './storage';
 
 jest.mock('./storage', () => ({
   ...jest.requireActual('./storage'),
-  createNamespaceStorageClient: jest.fn(),
+  createAiIndexStorageClient: jest.fn(),
 }));
 
-const createNamespaceStorageClientMock = createNamespaceStorageClient as jest.Mock;
+const createAiIndexStorageClientMock = createAiIndexStorageClient as jest.Mock;
 
 const createNotFoundError = () =>
   new errors.ResponseError({
@@ -64,7 +60,7 @@ const buildDataStream = (
     ...overrides,
   } as estypes.IndicesDataStream);
 
-const namespaceDocument: NamespaceDocument = {
+const aiIndexDocument: AiIndexDocument = {
   name: 'customer_support',
   description: 'KIs representing previously answered, commonly asked questions',
   type: 'data_stream',
@@ -74,12 +70,10 @@ const namespaceDocument: NamespaceDocument = {
   metadata: { preferred_harnesses: ['langsmith'] },
 };
 
-describe('NamespaceService', () => {
+describe('AiIndexService', () => {
   let esClient: ReturnType<typeof elasticsearchServiceMock.createElasticsearchClient>;
-  let storageClient: jest.Mocked<
-    Pick<NamespaceStorageClient, 'get' | 'index' | 'search' | 'delete'>
-  >;
-  let service: NamespaceService;
+  let storageClient: jest.Mocked<Pick<AiIndexStorageClient, 'get' | 'index' | 'search' | 'delete'>>;
+  let service: AiIndexService;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -101,9 +95,9 @@ describe('NamespaceService', () => {
       search: jest.fn(),
       delete: jest.fn(),
     };
-    createNamespaceStorageClientMock.mockReturnValue(storageClient);
+    createAiIndexStorageClientMock.mockReturnValue(storageClient);
 
-    service = new NamespaceService({
+    service = new AiIndexService({
       esClient,
       logger: loggingSystemMock.createLogger(),
     });
@@ -117,7 +111,7 @@ describe('NamespaceService', () => {
       source: 'customer_support*',
     };
 
-    it('creates a namespace with op_type create when none exists', async () => {
+    it('creates an AI index with op_type create when none exists', async () => {
       storageClient.get.mockRejectedValue(createNotFoundError());
 
       await expect(service.put('customer_support', properties)).resolves.toBe('created');
@@ -133,14 +127,14 @@ describe('NamespaceService', () => {
       });
     });
 
-    it('updates an existing namespace, preserving date_created and asserting seq_no', async () => {
+    it('updates an existing AI index, preserving date_created and asserting seq_no', async () => {
       storageClient.get.mockResolvedValue({
         _id: 'customer_support',
-        _index: '.contextengine-namespaces',
+        _index: '.contextengine-ai-indices',
         found: true,
         _seq_no: 7,
         _primary_term: 2,
-        _source: namespaceDocument,
+        _source: aiIndexDocument,
       });
 
       await expect(service.put('customer_support', properties)).resolves.toBe('updated');
@@ -148,32 +142,32 @@ describe('NamespaceService', () => {
       const [indexArgs] = storageClient.index.mock.calls[0];
       expect(indexArgs.if_seq_no).toBe(7);
       expect(indexArgs.if_primary_term).toBe(2);
-      expect(indexArgs.document?.date_created).toBe(namespaceDocument.date_created);
-      expect(indexArgs.document?.date_modified).not.toBe(namespaceDocument.date_modified);
+      expect(indexArgs.document?.date_created).toBe(aiIndexDocument.date_created);
+      expect(indexArgs.document?.date_modified).not.toBe(aiIndexDocument.date_modified);
     });
 
-    it('throws NamespaceConflictError when a concurrent create wins (409)', async () => {
+    it('throws AiIndexConflictError when a concurrent create wins (409)', async () => {
       storageClient.get.mockRejectedValue(createNotFoundError());
       storageClient.index.mockRejectedValue(createConflictError());
 
       await expect(service.put('customer_support', properties)).rejects.toBeInstanceOf(
-        NamespaceConflictError
+        AiIndexConflictError
       );
     });
 
-    it('throws NamespaceConflictError when a concurrent update wins (409)', async () => {
+    it('throws AiIndexConflictError when a concurrent update wins (409)', async () => {
       storageClient.get.mockResolvedValue({
         _id: 'customer_support',
-        _index: '.contextengine-namespaces',
+        _index: '.contextengine-ai-indices',
         found: true,
         _seq_no: 7,
         _primary_term: 2,
-        _source: namespaceDocument,
+        _source: aiIndexDocument,
       });
       storageClient.index.mockRejectedValue(createConflictError());
 
       await expect(service.put('customer_support', properties)).rejects.toBeInstanceOf(
-        NamespaceConflictError
+        AiIndexConflictError
       );
     });
 
@@ -181,7 +175,7 @@ describe('NamespaceService', () => {
       esClient.indices.getDataStream.mockResponse({ data_streams: [] });
 
       await expect(service.put('customer_support', properties)).rejects.toBeInstanceOf(
-        InvalidNamespaceSourceError
+        InvalidAiIndexSourceError
       );
       expect(storageClient.index).not.toHaveBeenCalled();
     });
@@ -191,7 +185,7 @@ describe('NamespaceService', () => {
 
       await expect(
         service.put('customer_support', { ...properties, source: 'customer_support' })
-      ).rejects.toBeInstanceOf(InvalidNamespaceSourceError);
+      ).rejects.toBeInstanceOf(InvalidAiIndexSourceError);
       expect(storageClient.index).not.toHaveBeenCalled();
     });
 
@@ -201,7 +195,7 @@ describe('NamespaceService', () => {
       });
 
       await expect(service.put('customer_support', properties)).rejects.toBeInstanceOf(
-        InvalidNamespaceSourceError
+        InvalidAiIndexSourceError
       );
       expect(storageClient.index).not.toHaveBeenCalled();
     });
@@ -222,7 +216,7 @@ describe('NamespaceService', () => {
       source: 'logs-*',
     };
 
-    it('creates an index_pattern namespace when the pattern matches an index', async () => {
+    it('creates an index_pattern AI index when the pattern matches an index', async () => {
       storageClient.get.mockRejectedValue(createNotFoundError());
 
       await expect(service.put('logs', indexPatternProperties)).resolves.toBe('created');
@@ -237,7 +231,7 @@ describe('NamespaceService', () => {
       });
 
       await expect(service.put('logs', indexPatternProperties)).rejects.toBeInstanceOf(
-        InvalidNamespaceSourceError
+        InvalidAiIndexSourceError
       );
       expect(storageClient.index).not.toHaveBeenCalled();
     });
@@ -250,7 +244,7 @@ describe('NamespaceService', () => {
       });
 
       await expect(service.put('logs', indexPatternProperties)).rejects.toBeInstanceOf(
-        InvalidNamespaceSourceError
+        InvalidAiIndexSourceError
       );
       expect(storageClient.index).not.toHaveBeenCalled();
     });
@@ -279,30 +273,30 @@ describe('NamespaceService', () => {
 
       await expect(
         service.put('logs', { ...indexPatternProperties, source: 'logs-*,.kibana*' })
-      ).rejects.toBeInstanceOf(InvalidNamespaceSourceError);
+      ).rejects.toBeInstanceOf(InvalidAiIndexSourceError);
       expect(storageClient.index).not.toHaveBeenCalled();
     });
   });
 
   describe('get', () => {
-    it('returns the namespace with its id', async () => {
+    it('returns the AI index with its id', async () => {
       storageClient.get.mockResolvedValue({
         _id: 'customer_support',
-        _index: '.contextengine-namespaces',
+        _index: '.contextengine-ai-indices',
         found: true,
-        _source: namespaceDocument,
+        _source: aiIndexDocument,
       });
 
       await expect(service.get('customer_support')).resolves.toEqual({
         id: 'customer_support',
-        ...namespaceDocument,
+        ...aiIndexDocument,
       });
     });
 
-    it('throws NamespaceNotFoundError when the namespace does not exist', async () => {
+    it('throws AiIndexNotFoundError when the AI index does not exist', async () => {
       storageClient.get.mockRejectedValue(createNotFoundError());
 
-      await expect(service.get('missing')).rejects.toBeInstanceOf(NamespaceNotFoundError);
+      await expect(service.get('missing')).rejects.toBeInstanceOf(AiIndexNotFoundError);
     });
 
     it('rethrows unexpected errors', async () => {
@@ -313,7 +307,7 @@ describe('NamespaceService', () => {
   });
 
   describe('list', () => {
-    it('returns namespaces mapped from search hits', async () => {
+    it('returns AI indices mapped from search hits', async () => {
       storageClient.search.mockResolvedValue({
         took: 1,
         timed_out: false,
@@ -322,15 +316,15 @@ describe('NamespaceService', () => {
           hits: [
             {
               _id: 'customer_support',
-              _index: '.contextengine-namespaces',
-              _source: namespaceDocument,
+              _index: '.contextengine-ai-indices',
+              _source: aiIndexDocument,
             },
           ],
         },
-      } as unknown as Awaited<ReturnType<NamespaceStorageClient['search']>>);
+      } as unknown as Awaited<ReturnType<AiIndexStorageClient['search']>>);
 
       await expect(service.list()).resolves.toEqual([
-        { id: 'customer_support', ...namespaceDocument },
+        { id: 'customer_support', ...aiIndexDocument },
       ]);
 
       expect(storageClient.search).toHaveBeenCalledWith(
@@ -340,17 +334,17 @@ describe('NamespaceService', () => {
   });
 
   describe('delete', () => {
-    it('resolves when the namespace is deleted', async () => {
+    it('resolves when the AI index is deleted', async () => {
       storageClient.delete.mockResolvedValue({ acknowledged: true, result: 'deleted' });
 
       await expect(service.delete('customer_support')).resolves.toBeUndefined();
       expect(storageClient.delete).toHaveBeenCalledWith({ id: 'customer_support' });
     });
 
-    it('throws NamespaceNotFoundError when the namespace does not exist', async () => {
+    it('throws AiIndexNotFoundError when the AI index does not exist', async () => {
       storageClient.delete.mockResolvedValue({ acknowledged: true, result: 'not_found' });
 
-      await expect(service.delete('missing')).rejects.toBeInstanceOf(NamespaceNotFoundError);
+      await expect(service.delete('missing')).rejects.toBeInstanceOf(AiIndexNotFoundError);
     });
   });
 });

@@ -10,27 +10,27 @@ import type { IRouter, KibanaResponseFactory, RequestHandler } from '@kbn/core/s
 import type { RouteSecurity } from '@kbn/core-http-server';
 import { CONTEXT_ENGINE_ENABLED_SETTING_ID } from '@kbn/management-settings-ids';
 import {
-  MAX_NAMESPACE_DESCRIPTION_LENGTH,
-  MAX_NAMESPACE_ID_LENGTH,
-  MAX_NAMESPACE_NAME_LENGTH,
-  MAX_NAMESPACE_SOURCE_LENGTH,
-  MAX_NAMESPACES,
-  namespaceByIdPath,
-  namespacePath,
+  MAX_AI_INDEX_DESCRIPTION_LENGTH,
+  MAX_AI_INDEX_ID_LENGTH,
+  MAX_AI_INDEX_NAME_LENGTH,
+  MAX_AI_INDEX_SOURCE_LENGTH,
+  MAX_AI_INDICES,
+  aiIndexByIdPath,
+  aiIndexPath,
 } from '../../common/constants';
 import type {
-  DeleteNamespaceResponse,
-  GetNamespaceResponse,
-  ListNamespaceResponse,
-  PutNamespaceResponse,
-} from '../../common/http_api/namespaces';
+  DeleteAiIndexResponse,
+  GetAiIndexResponse,
+  ListAiIndexResponse,
+  PutAiIndexResponse,
+} from '../../common/http_api/ai_indices';
 import { apiPrivileges } from '../../common/features';
 import {
-  InvalidNamespaceSourceError,
-  NamespaceConflictError,
-  NamespaceNotFoundError,
-} from '../namespaces/errors';
-import type { NamespaceService } from '../namespaces/service';
+  InvalidAiIndexSourceError,
+  AiIndexConflictError,
+  AiIndexNotFoundError,
+} from '../ai_indices/errors';
+import type { AiIndexService } from '../ai_indices/service';
 
 const API_VERSION = '2023-10-31';
 
@@ -42,27 +42,27 @@ const WRITE_SECURITY: RouteSecurity = {
   authz: { requiredPrivileges: [apiPrivileges.writeContextEngine] },
 };
 
-const namespaceIdParamsSchema = schema.object({
-  namespaceId: schema.string({
+const aiIndexIdParamsSchema = schema.object({
+  aiIndexId: schema.string({
     minLength: 1,
-    maxLength: MAX_NAMESPACE_ID_LENGTH,
-    meta: { description: 'The unique identifier of the namespace.' },
+    maxLength: MAX_AI_INDEX_ID_LENGTH,
+    meta: { description: 'The unique identifier of the AI index.' },
   }),
 });
 
-const putNamespaceBodySchema = schema.object({
+const putAiIndexBodySchema = schema.object({
   name: schema.string({
     minLength: 1,
-    maxLength: MAX_NAMESPACE_NAME_LENGTH,
+    maxLength: MAX_AI_INDEX_NAME_LENGTH,
     meta: {
       description:
-        'Display name for the namespace. Separate from the id so it can be renamed if necessary.',
+        'Display name for the AI index. Separate from the id so it can be renamed if necessary.',
     },
   }),
   description: schema.maybe(
     schema.string({
-      maxLength: MAX_NAMESPACE_DESCRIPTION_LENGTH,
-      meta: { description: 'Human-readable description of the namespace.' },
+      maxLength: MAX_AI_INDEX_DESCRIPTION_LENGTH,
+      meta: { description: 'Human-readable description of the AI index.' },
     })
   ),
   type: schema.oneOf([schema.literal('data_stream'), schema.literal('index_pattern')], {
@@ -73,15 +73,15 @@ const putNamespaceBodySchema = schema.object({
   }),
   source: schema.string({
     minLength: 1,
-    maxLength: MAX_NAMESPACE_SOURCE_LENGTH,
+    maxLength: MAX_AI_INDEX_SOURCE_LENGTH,
     meta: {
       description:
-        'The data stream or index pattern (e.g. `foo`, `foo,bar`, `foo*`) the namespace is attached to. Must already exist and match `type`; system indices are not allowed.',
+        'The data stream or index pattern (e.g. `foo`, `foo,bar`, `foo*`) the AI index is attached to. Must already exist and match `type`; system indices are not allowed.',
     },
   }),
   metadata: schema.maybe(
     schema.recordOf(schema.string(), schema.any(), {
-      meta: { description: 'Arbitrary metadata about the namespace, e.g. for UI purposes.' },
+      meta: { description: 'Arbitrary metadata about the AI index, e.g. for UI purposes.' },
     })
   ),
 });
@@ -98,35 +98,35 @@ const withContextEngineFeatureFlag =
     return handler(ctx, request, response);
   };
 
-const handleNamespaceError = (error: unknown, response: KibanaResponseFactory) => {
-  if (error instanceof InvalidNamespaceSourceError) {
+const handleAiIndexError = (error: unknown, response: KibanaResponseFactory) => {
+  if (error instanceof InvalidAiIndexSourceError) {
     return response.badRequest({ body: { message: error.message } });
   }
-  if (error instanceof NamespaceNotFoundError) {
+  if (error instanceof AiIndexNotFoundError) {
     return response.notFound({ body: { message: error.message } });
   }
-  if (error instanceof NamespaceConflictError) {
+  if (error instanceof AiIndexConflictError) {
     return response.conflict({ body: { message: error.message } });
   }
   throw error;
 };
 
-export const registerNamespaceRoutes = ({
+export const registerAiIndexRoutes = ({
   router,
-  getNamespaceService,
+  getAiIndexService,
 }: {
   router: IRouter;
-  getNamespaceService: () => NamespaceService;
+  getAiIndexService: () => AiIndexService;
 }) => {
-  // Create or update a namespace
+  // Create or update an AI index
   router.versioned
     .put({
-      path: namespaceByIdPath,
+      path: aiIndexByIdPath,
       security: WRITE_SECURITY,
       access: 'public',
-      summary: 'Create or update a namespace',
+      summary: 'Create or update an AI index',
       description:
-        'Creates or updates a namespace record attached to an existing data stream or index pattern.',
+        'Creates or updates an AI index record attached to an existing data stream or index pattern.',
       options: {
         tags: ['oas-tag:context engine'],
         availability: { stability: 'experimental' },
@@ -137,30 +137,30 @@ export const registerNamespaceRoutes = ({
         version: API_VERSION,
         validate: {
           request: {
-            params: namespaceIdParamsSchema,
-            body: putNamespaceBodySchema,
+            params: aiIndexIdParamsSchema,
+            body: putAiIndexBodySchema,
           },
         },
       },
       withContextEngineFeatureFlag(async (ctx, request, response) => {
         try {
-          const status = await getNamespaceService().put(request.params.namespaceId, request.body);
-          const body: PutNamespaceResponse = { status };
+          const status = await getAiIndexService().put(request.params.aiIndexId, request.body);
+          const body: PutAiIndexResponse = { status };
           return status === 'created' ? response.created({ body }) : response.ok({ body });
         } catch (error) {
-          return handleNamespaceError(error, response);
+          return handleAiIndexError(error, response);
         }
       })
     );
 
-  // Get a namespace by id
+  // Get an AI index by id
   router.versioned
     .get({
-      path: namespaceByIdPath,
+      path: aiIndexByIdPath,
       security: READ_SECURITY,
       access: 'public',
-      summary: 'Get a namespace',
-      description: 'Fetches a namespace by id.',
+      summary: 'Get an AI index',
+      description: 'Fetches an AI index by id.',
       options: {
         tags: ['oas-tag:context engine'],
         availability: { stability: 'experimental' },
@@ -171,30 +171,28 @@ export const registerNamespaceRoutes = ({
         version: API_VERSION,
         validate: {
           request: {
-            params: namespaceIdParamsSchema,
+            params: aiIndexIdParamsSchema,
           },
         },
       },
       withContextEngineFeatureFlag(async (ctx, request, response) => {
         try {
-          const body: GetNamespaceResponse = await getNamespaceService().get(
-            request.params.namespaceId
-          );
+          const body: GetAiIndexResponse = await getAiIndexService().get(request.params.aiIndexId);
           return response.ok({ body });
         } catch (error) {
-          return handleNamespaceError(error, response);
+          return handleAiIndexError(error, response);
         }
       })
     );
 
-  // List namespaces
+  // List AI indices
   router.versioned
     .get({
-      path: namespacePath,
+      path: aiIndexPath,
       security: READ_SECURITY,
       access: 'public',
-      summary: 'List namespaces',
-      description: `Lists registered namespaces, up to a limit of ${MAX_NAMESPACES}.`,
+      summary: 'List AI indices',
+      description: `Lists registered AI indices, up to a limit of ${MAX_AI_INDICES}.`,
       options: {
         tags: ['oas-tag:context engine'],
         availability: { stability: 'experimental' },
@@ -206,22 +204,22 @@ export const registerNamespaceRoutes = ({
         validate: false,
       },
       withContextEngineFeatureFlag(async (ctx, request, response) => {
-        const body: ListNamespaceResponse = {
-          namespaces: await getNamespaceService().list(),
+        const body: ListAiIndexResponse = {
+          ai_indices: await getAiIndexService().list(),
         };
         return response.ok({ body });
       })
     );
 
-  // Delete a namespace
+  // Delete an AI index
   router.versioned
     .delete({
-      path: namespaceByIdPath,
+      path: aiIndexByIdPath,
       security: WRITE_SECURITY,
       access: 'public',
-      summary: 'Delete a namespace',
+      summary: 'Delete an AI index',
       description:
-        'Deletes a namespace by id. Only the namespace entry is deleted — backing indices are left untouched and must be removed with the Delete index API if desired.',
+        'Deletes an AI index by id. Only the AI index entry is deleted — backing indices are left untouched and must be removed with the Delete index API if desired.',
       options: {
         tags: ['oas-tag:context engine'],
         availability: { stability: 'experimental' },
@@ -232,17 +230,17 @@ export const registerNamespaceRoutes = ({
         version: API_VERSION,
         validate: {
           request: {
-            params: namespaceIdParamsSchema,
+            params: aiIndexIdParamsSchema,
           },
         },
       },
       withContextEngineFeatureFlag(async (ctx, request, response) => {
         try {
-          await getNamespaceService().delete(request.params.namespaceId);
-          const body: DeleteNamespaceResponse = { acknowledged: true };
+          await getAiIndexService().delete(request.params.aiIndexId);
+          const body: DeleteAiIndexResponse = { acknowledged: true };
           return response.ok({ body });
         } catch (error) {
-          return handleNamespaceError(error, response);
+          return handleAiIndexError(error, response);
         }
       })
     );

@@ -10,8 +10,8 @@ import { tags } from '@kbn/scout';
 import { expect } from '@kbn/scout/api';
 import { apiTest, testData } from '../fixtures';
 
-const NAMESPACE_ID = 'scout_test_namespace';
-const NAMESPACE_PATH = `api/context_engine/namespace/${NAMESPACE_ID}`;
+const AI_INDEX_ID = 'scout_test_ai_index';
+const AI_INDEX_PATH = `api/context_engine/ai_index/${AI_INDEX_ID}`;
 const SOURCE_DATA_STREAM = 'scout-test-context-engine-source';
 const SOURCE_INDEX_TEMPLATE = 'scout-test-context-engine-template';
 const CONTEXT_ENGINE_ENABLED_SETTING = 'contextEngine:enabled';
@@ -21,15 +21,15 @@ const API_HEADERS = {
   'elastic-api-version': '2023-10-31',
 };
 
-const namespaceBody = {
-  name: 'scout_test_namespace',
-  description: 'Namespace created by the Scout API test suite',
+const aiIndexBody = {
+  name: 'scout_test_ai_index',
+  description: 'AI index created by the Scout API test suite',
   type: 'data_stream',
   source: SOURCE_DATA_STREAM,
   metadata: { preferred_harnesses: ['scout'] },
 };
 
-apiTest.describe('context engine namespaces API', { tag: tags.stateful.classic }, () => {
+apiTest.describe('context engine AI indices API', { tag: tags.stateful.classic }, () => {
   let adminApiCredentials: RoleApiCredentials;
   let viewerApiCredentials: RoleApiCredentials;
 
@@ -47,7 +47,7 @@ apiTest.describe('context engine namespaces API', { tag: tags.stateful.classic }
   });
 
   apiTest.afterAll(async ({ apiClient, kbnClient, esClient }) => {
-    await apiClient.delete(NAMESPACE_PATH, {
+    await apiClient.delete(AI_INDEX_PATH, {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
     });
@@ -56,57 +56,57 @@ apiTest.describe('context engine namespaces API', { tag: tags.stateful.classic }
     await kbnClient.uiSettings.unset(CONTEXT_ENGINE_ENABLED_SETTING);
   });
 
-  apiTest('creates a namespace attached to an existing source', async ({ apiClient }) => {
-    const response = await apiClient.put(NAMESPACE_PATH, {
+  apiTest('creates an AI index attached to an existing source', async ({ apiClient }) => {
+    const response = await apiClient.put(AI_INDEX_PATH, {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
-      body: namespaceBody,
+      body: aiIndexBody,
     });
 
     expect(response).toHaveStatusCode(201);
     expect(response.body).toStrictEqual({ status: 'created' });
   });
 
-  apiTest('gets the namespace by id', async ({ apiClient }) => {
-    const response = await apiClient.get(NAMESPACE_PATH, {
+  apiTest('gets the AI index by id', async ({ apiClient }) => {
+    const response = await apiClient.get(AI_INDEX_PATH, {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
     });
 
     expect(response).toHaveStatusCode(200);
-    expect(response.body).toMatchObject({ id: NAMESPACE_ID, ...namespaceBody });
+    expect(response.body).toMatchObject({ id: AI_INDEX_ID, ...aiIndexBody });
     expect(response.body.date_created).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(response.body.date_modified).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
-  apiTest('lists the namespace', async ({ apiClient }) => {
-    const response = await apiClient.get('api/context_engine/namespace', {
+  apiTest('lists the AI index', async ({ apiClient }) => {
+    const response = await apiClient.get('api/context_engine/ai_index', {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
     });
 
     expect(response).toHaveStatusCode(200);
-    expect(response.body.namespaces).toStrictEqual(
-      expect.arrayContaining([expect.objectContaining({ id: NAMESPACE_ID })])
+    expect(response.body.ai_indices).toStrictEqual(
+      expect.arrayContaining([expect.objectContaining({ id: AI_INDEX_ID })])
     );
   });
 
-  apiTest('updates the namespace and preserves date_created', async ({ apiClient }) => {
-    const createdResponse = await apiClient.get(NAMESPACE_PATH, {
+  apiTest('updates the AI index and preserves date_created', async ({ apiClient }) => {
+    const createdResponse = await apiClient.get(AI_INDEX_PATH, {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
     });
 
-    const response = await apiClient.put(NAMESPACE_PATH, {
+    const response = await apiClient.put(AI_INDEX_PATH, {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
-      body: { ...namespaceBody, description: 'Updated description' },
+      body: { ...aiIndexBody, description: 'Updated description' },
     });
 
     expect(response).toHaveStatusCode(200);
     expect(response.body).toStrictEqual({ status: 'updated' });
 
-    const updatedResponse = await apiClient.get(NAMESPACE_PATH, {
+    const updatedResponse = await apiClient.get(AI_INDEX_PATH, {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
     });
@@ -114,19 +114,19 @@ apiTest.describe('context engine namespaces API', { tag: tags.stateful.classic }
     expect(updatedResponse.body.date_created).toBe(createdResponse.body.date_created);
   });
 
-  apiTest('rejects a namespace whose source does not exist', async ({ apiClient }) => {
-    const response = await apiClient.put(NAMESPACE_PATH, {
+  apiTest('rejects an AI index whose source does not exist', async ({ apiClient }) => {
+    const response = await apiClient.put(AI_INDEX_PATH, {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
-      body: { ...namespaceBody, source: 'does-not-exist-*' },
+      body: { ...aiIndexBody, source: 'does-not-exist-*' },
     });
 
     expect(response).toHaveStatusCode(400);
   });
 
-  apiTest('creates and reads an index_pattern namespace', async ({ apiClient, esClient }) => {
-    const indexPatternNamespaceId = 'scout_test_index_pattern_namespace';
-    const indexPatternPath = `api/context_engine/namespace/${indexPatternNamespaceId}`;
+  apiTest('creates and reads an index_pattern AI index', async ({ apiClient, esClient }) => {
+    const indexPatternAiIndexId = 'scout_test_index_pattern_ai_index';
+    const indexPatternPath = `api/context_engine/ai_index/${indexPatternAiIndexId}`;
     const sourceIndex = 'scout-test-context-engine-index';
     await esClient.indices.create({ index: sourceIndex });
 
@@ -134,7 +134,7 @@ apiTest.describe('context engine namespaces API', { tag: tags.stateful.classic }
       const createResponse = await apiClient.put(indexPatternPath, {
         headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
         responseType: 'json',
-        body: { name: indexPatternNamespaceId, type: 'index_pattern', source: `${sourceIndex}*` },
+        body: { name: indexPatternAiIndexId, type: 'index_pattern', source: `${sourceIndex}*` },
       });
       expect(createResponse).toHaveStatusCode(201);
       expect(createResponse.body).toStrictEqual({ status: 'created' });
@@ -145,7 +145,7 @@ apiTest.describe('context engine namespaces API', { tag: tags.stateful.classic }
       });
       expect(getResponse).toHaveStatusCode(200);
       expect(getResponse.body).toMatchObject({
-        id: indexPatternNamespaceId,
+        id: indexPatternAiIndexId,
         type: 'index_pattern',
         source: `${sourceIndex}*`,
       });
@@ -159,10 +159,10 @@ apiTest.describe('context engine namespaces API', { tag: tags.stateful.classic }
   });
 
   apiTest('rejects a system index as an index_pattern source', async ({ apiClient }) => {
-    const response = await apiClient.put(NAMESPACE_PATH, {
+    const response = await apiClient.put(AI_INDEX_PATH, {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
-      body: { ...namespaceBody, type: 'index_pattern', source: '.kibana*' },
+      body: { ...aiIndexBody, type: 'index_pattern', source: '.kibana*' },
     });
 
     expect(response).toHaveStatusCode(400);
@@ -173,10 +173,10 @@ apiTest.describe('context engine namespaces API', { tag: tags.stateful.classic }
     await esClient.indices.create({ index: plainIndex });
 
     try {
-      const response = await apiClient.put(NAMESPACE_PATH, {
+      const response = await apiClient.put(AI_INDEX_PATH, {
         headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
         responseType: 'json',
-        body: { ...namespaceBody, source: plainIndex },
+        body: { ...aiIndexBody, source: plainIndex },
       });
 
       expect(response).toHaveStatusCode(400);
@@ -186,9 +186,9 @@ apiTest.describe('context engine namespaces API', { tag: tags.stateful.classic }
   });
 
   apiTest('rejects a request without the required type field', async ({ apiClient }) => {
-    const { type, ...bodyWithoutType } = namespaceBody;
+    const { type, ...bodyWithoutType } = aiIndexBody;
 
-    const response = await apiClient.put(NAMESPACE_PATH, {
+    const response = await apiClient.put(AI_INDEX_PATH, {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
       body: bodyWithoutType,
@@ -198,17 +198,17 @@ apiTest.describe('context engine namespaces API', { tag: tags.stateful.classic }
   });
 
   apiTest('forbids writes for a read-only user', async ({ apiClient }) => {
-    const response = await apiClient.put(NAMESPACE_PATH, {
+    const response = await apiClient.put(AI_INDEX_PATH, {
       headers: { ...viewerApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
-      body: namespaceBody,
+      body: aiIndexBody,
     });
 
     expect(response).toHaveStatusCode(403);
   });
 
   apiTest('allows reads for a read-only user', async ({ apiClient }) => {
-    const response = await apiClient.get('api/context_engine/namespace', {
+    const response = await apiClient.get('api/context_engine/ai_index', {
       headers: { ...viewerApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
     });
@@ -216,8 +216,8 @@ apiTest.describe('context engine namespaces API', { tag: tags.stateful.classic }
     expect(response).toHaveStatusCode(200);
   });
 
-  apiTest('deletes the namespace', async ({ apiClient }) => {
-    const response = await apiClient.delete(NAMESPACE_PATH, {
+  apiTest('deletes the AI index', async ({ apiClient }) => {
+    const response = await apiClient.delete(AI_INDEX_PATH, {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
     });
@@ -226,14 +226,14 @@ apiTest.describe('context engine namespaces API', { tag: tags.stateful.classic }
     expect(response.body).toStrictEqual({ acknowledged: true });
   });
 
-  apiTest('returns 404 for a deleted namespace', async ({ apiClient }) => {
-    const getResponse = await apiClient.get(NAMESPACE_PATH, {
+  apiTest('returns 404 for a deleted AI index', async ({ apiClient }) => {
+    const getResponse = await apiClient.get(AI_INDEX_PATH, {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
     });
     expect(getResponse).toHaveStatusCode(404);
 
-    const deleteResponse = await apiClient.delete(NAMESPACE_PATH, {
+    const deleteResponse = await apiClient.delete(AI_INDEX_PATH, {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
     });

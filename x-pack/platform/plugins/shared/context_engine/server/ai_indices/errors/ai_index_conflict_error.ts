@@ -5,9 +5,9 @@
  * 2.0.
  */
 
-export class InvalidNamespaceSourceError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'InvalidNamespaceSourceError';
+export class AiIndexConflictError extends Error {
+  constructor(aiIndexId: string) {
+    super(`AI index '${aiIndexId}' was modified concurrently; please retry`);
+    this.name = 'AiIndexConflictError';
   }
 }

@@ -7,15 +7,15 @@
 
 import type { IRouter, RequestHandler } from '@kbn/core/server';
 import { httpServerMock } from '@kbn/core/server/mocks';
-import { registerNamespaceRoutes } from './namespaces';
-import { namespaceByIdPath, namespacePath } from '../../common/constants';
+import { registerAiIndexRoutes } from './ai_indices';
+import { aiIndexByIdPath, aiIndexPath } from '../../common/constants';
 import { apiPrivileges } from '../../common/features';
 import {
-  InvalidNamespaceSourceError,
-  NamespaceConflictError,
-  NamespaceNotFoundError,
-} from '../namespaces/errors';
-import type { NamespaceService } from '../namespaces/service';
+  InvalidAiIndexSourceError,
+  AiIndexConflictError,
+  AiIndexNotFoundError,
+} from '../ai_indices/errors';
+import type { AiIndexService } from '../ai_indices/service';
 
 interface RegisteredRoute {
   config: {
@@ -26,9 +26,9 @@ interface RegisteredRoute {
   handler: RequestHandler;
 }
 
-describe('namespaces routes', () => {
+describe('ai indices routes', () => {
   let routes: Record<string, RegisteredRoute>;
-  let namespaceService: jest.Mocked<Pick<NamespaceService, 'put' | 'get' | 'list' | 'delete'>>;
+  let aiIndexService: jest.Mocked<Pick<AiIndexService, 'put' | 'get' | 'list' | 'delete'>>;
   let response: ReturnType<typeof httpServerMock.createResponseFactory>;
   let featureFlagEnabled: boolean;
 
@@ -51,7 +51,7 @@ describe('namespaces routes', () => {
     routes = {};
     featureFlagEnabled = true;
     response = httpServerMock.createResponseFactory();
-    namespaceService = {
+    aiIndexService = {
       put: jest.fn(),
       get: jest.fn(),
       list: jest.fn(),
@@ -72,9 +72,9 @@ describe('namespaces routes', () => {
       },
     } as unknown as IRouter;
 
-    registerNamespaceRoutes({
+    registerAiIndexRoutes({
       router,
-      getNamespaceService: () => namespaceService as unknown as NamespaceService,
+      getAiIndexService: () => aiIndexService as unknown as AiIndexService,
     });
   });
 
@@ -86,40 +86,40 @@ describe('namespaces routes', () => {
   it('returns 404 on every route when the context engine is disabled', async () => {
     featureFlagEnabled = false;
 
-    await callRoute('PUT', namespaceByIdPath, { params: { namespaceId: 'a' }, body: {} });
-    await callRoute('GET', namespaceByIdPath, { params: { namespaceId: 'a' } });
-    await callRoute('GET', namespacePath, {});
-    await callRoute('DELETE', namespaceByIdPath, { params: { namespaceId: 'a' } });
+    await callRoute('PUT', aiIndexByIdPath, { params: { aiIndexId: 'a' }, body: {} });
+    await callRoute('GET', aiIndexByIdPath, { params: { aiIndexId: 'a' } });
+    await callRoute('GET', aiIndexPath, {});
+    await callRoute('DELETE', aiIndexByIdPath, { params: { aiIndexId: 'a' } });
 
     expect(response.notFound).toHaveBeenCalledTimes(4);
-    expect(namespaceService.put).not.toHaveBeenCalled();
-    expect(namespaceService.get).not.toHaveBeenCalled();
-    expect(namespaceService.list).not.toHaveBeenCalled();
-    expect(namespaceService.delete).not.toHaveBeenCalled();
+    expect(aiIndexService.put).not.toHaveBeenCalled();
+    expect(aiIndexService.get).not.toHaveBeenCalled();
+    expect(aiIndexService.list).not.toHaveBeenCalled();
+    expect(aiIndexService.delete).not.toHaveBeenCalled();
   });
 
   it('registers all routes as public with the expected privileges', () => {
-    expect(getRoute('PUT', namespaceByIdPath).config).toMatchObject({
+    expect(getRoute('PUT', aiIndexByIdPath).config).toMatchObject({
       access: 'public',
       security: { authz: { requiredPrivileges: [apiPrivileges.writeContextEngine] } },
     });
-    expect(getRoute('GET', namespaceByIdPath).config).toMatchObject({
+    expect(getRoute('GET', aiIndexByIdPath).config).toMatchObject({
       access: 'public',
       security: { authz: { requiredPrivileges: [apiPrivileges.readContextEngine] } },
     });
-    expect(getRoute('GET', namespacePath).config).toMatchObject({
+    expect(getRoute('GET', aiIndexPath).config).toMatchObject({
       access: 'public',
       security: { authz: { requiredPrivileges: [apiPrivileges.readContextEngine] } },
     });
-    expect(getRoute('DELETE', namespaceByIdPath).config).toMatchObject({
+    expect(getRoute('DELETE', aiIndexByIdPath).config).toMatchObject({
       access: 'public',
       security: { authz: { requiredPrivileges: [apiPrivileges.writeContextEngine] } },
     });
   });
 
-  describe('PUT /api/context_engine/namespace/{namespaceId}', () => {
+  describe('PUT /api/context_engine/ai_index/{aiIndexId}', () => {
     const putRequest = {
-      params: { namespaceId: 'customer_support' },
+      params: { aiIndexId: 'customer_support' },
       body: {
         name: 'customer_support',
         type: 'data_stream',
@@ -127,31 +127,31 @@ describe('namespaces routes', () => {
       },
     };
 
-    it('returns 201 when the namespace is created', async () => {
-      namespaceService.put.mockResolvedValue('created');
+    it('returns 201 when the AI index is created', async () => {
+      aiIndexService.put.mockResolvedValue('created');
 
-      await callRoute('PUT', namespaceByIdPath, putRequest);
+      await callRoute('PUT', aiIndexByIdPath, putRequest);
 
-      expect(namespaceService.put).toHaveBeenCalledWith('customer_support', putRequest.body);
+      expect(aiIndexService.put).toHaveBeenCalledWith('customer_support', putRequest.body);
       expect(response.created).toHaveBeenCalledWith({ body: { status: 'created' } });
     });
 
-    it('returns 200 when the namespace is updated', async () => {
-      namespaceService.put.mockResolvedValue('updated');
+    it('returns 200 when the AI index is updated', async () => {
+      aiIndexService.put.mockResolvedValue('updated');
 
-      await callRoute('PUT', namespaceByIdPath, putRequest);
+      await callRoute('PUT', aiIndexByIdPath, putRequest);
 
       expect(response.ok).toHaveBeenCalledWith({ body: { status: 'updated' } });
     });
 
     it('returns 400 when the source is invalid', async () => {
-      namespaceService.put.mockRejectedValue(
-        new InvalidNamespaceSourceError(
+      aiIndexService.put.mockRejectedValue(
+        new InvalidAiIndexSourceError(
           "Source 'customer_support*' does not match any existing index, index pattern, or data stream"
         )
       );
 
-      await callRoute('PUT', namespaceByIdPath, putRequest);
+      await callRoute('PUT', aiIndexByIdPath, putRequest);
 
       expect(response.badRequest).toHaveBeenCalledWith({
         body: {
@@ -161,20 +161,20 @@ describe('namespaces routes', () => {
       });
     });
 
-    it('returns 409 when the namespace is modified concurrently', async () => {
-      namespaceService.put.mockRejectedValue(new NamespaceConflictError('customer_support'));
+    it('returns 409 when the AI index is modified concurrently', async () => {
+      aiIndexService.put.mockRejectedValue(new AiIndexConflictError('customer_support'));
 
-      await callRoute('PUT', namespaceByIdPath, putRequest);
+      await callRoute('PUT', aiIndexByIdPath, putRequest);
 
       expect(response.conflict).toHaveBeenCalledWith({
-        body: { message: "Namespace 'customer_support' was modified concurrently; please retry" },
+        body: { message: "AI index 'customer_support' was modified concurrently; please retry" },
       });
     });
   });
 
-  describe('GET /api/context_engine/namespace/{namespaceId}', () => {
-    it('returns the namespace', async () => {
-      const namespace = {
+  describe('GET /api/context_engine/ai_index/{aiIndexId}', () => {
+    it('returns the AI index', async () => {
+      const aiIndex = {
         id: 'customer_support',
         name: 'customer_support',
         type: 'data_stream' as const,
@@ -182,61 +182,61 @@ describe('namespaces routes', () => {
         date_created: '2026-07-08T12:10:30.000Z',
         date_modified: '2026-07-08T12:10:30.000Z',
       };
-      namespaceService.get.mockResolvedValue(namespace);
+      aiIndexService.get.mockResolvedValue(aiIndex);
 
-      await callRoute('GET', namespaceByIdPath, { params: { namespaceId: 'customer_support' } });
+      await callRoute('GET', aiIndexByIdPath, { params: { aiIndexId: 'customer_support' } });
 
-      expect(response.ok).toHaveBeenCalledWith({ body: namespace });
+      expect(response.ok).toHaveBeenCalledWith({ body: aiIndex });
     });
 
-    it('returns 404 when the namespace does not exist', async () => {
-      namespaceService.get.mockRejectedValue(new NamespaceNotFoundError('missing'));
+    it('returns 404 when the AI index does not exist', async () => {
+      aiIndexService.get.mockRejectedValue(new AiIndexNotFoundError('missing'));
 
-      await callRoute('GET', namespaceByIdPath, { params: { namespaceId: 'missing' } });
+      await callRoute('GET', aiIndexByIdPath, { params: { aiIndexId: 'missing' } });
 
       expect(response.notFound).toHaveBeenCalledWith({
-        body: { message: "Namespace 'missing' not found" },
+        body: { message: "AI index 'missing' not found" },
       });
     });
 
     it('rethrows unexpected errors', async () => {
-      namespaceService.get.mockRejectedValue(new Error('boom'));
+      aiIndexService.get.mockRejectedValue(new Error('boom'));
 
       await expect(
-        callRoute('GET', namespaceByIdPath, { params: { namespaceId: 'customer_support' } })
+        callRoute('GET', aiIndexByIdPath, { params: { aiIndexId: 'customer_support' } })
       ).rejects.toThrow('boom');
     });
   });
 
-  describe('GET /api/context_engine/namespace', () => {
-    it('returns the list of namespaces', async () => {
-      namespaceService.list.mockResolvedValue([]);
+  describe('GET /api/context_engine/ai_index', () => {
+    it('returns the list of AI indices', async () => {
+      aiIndexService.list.mockResolvedValue([]);
 
-      await callRoute('GET', namespacePath, {});
+      await callRoute('GET', aiIndexPath, {});
 
-      expect(response.ok).toHaveBeenCalledWith({ body: { namespaces: [] } });
+      expect(response.ok).toHaveBeenCalledWith({ body: { ai_indices: [] } });
     });
   });
 
-  describe('DELETE /api/context_engine/namespace/{namespaceId}', () => {
-    it('returns acknowledged when the namespace is deleted', async () => {
-      namespaceService.delete.mockResolvedValue(undefined);
+  describe('DELETE /api/context_engine/ai_index/{aiIndexId}', () => {
+    it('returns acknowledged when the AI index is deleted', async () => {
+      aiIndexService.delete.mockResolvedValue(undefined);
 
-      await callRoute('DELETE', namespaceByIdPath, {
-        params: { namespaceId: 'customer_support' },
+      await callRoute('DELETE', aiIndexByIdPath, {
+        params: { aiIndexId: 'customer_support' },
       });
 
-      expect(namespaceService.delete).toHaveBeenCalledWith('customer_support');
+      expect(aiIndexService.delete).toHaveBeenCalledWith('customer_support');
       expect(response.ok).toHaveBeenCalledWith({ body: { acknowledged: true } });
     });
 
-    it('returns 404 when the namespace does not exist', async () => {
-      namespaceService.delete.mockRejectedValue(new NamespaceNotFoundError('missing'));
+    it('returns 404 when the AI index does not exist', async () => {
+      aiIndexService.delete.mockRejectedValue(new AiIndexNotFoundError('missing'));
 
-      await callRoute('DELETE', namespaceByIdPath, { params: { namespaceId: 'missing' } });
+      await callRoute('DELETE', aiIndexByIdPath, { params: { aiIndexId: 'missing' } });
 
       expect(response.notFound).toHaveBeenCalledWith({
-        body: { message: "Namespace 'missing' not found" },
+        body: { message: "AI index 'missing' not found" },
       });
     });
   });

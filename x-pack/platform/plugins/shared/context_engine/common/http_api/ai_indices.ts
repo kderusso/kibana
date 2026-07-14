@@ -6,35 +6,35 @@
  */
 
 /**
- * The type of source a namespace is attached to. `index_pattern` covers a
+ * The type of source an AI index is attached to. `index_pattern` covers a
  * concrete index name or an index pattern (e.g. `foo`, `foo,bar`, `foo*`).
  */
-export type NamespaceType = 'data_stream' | 'index_pattern';
+export type AiIndexType = 'data_stream' | 'index_pattern';
 
-export interface NamespaceProperties {
+export interface AiIndexProperties {
   name: string;
   description?: string;
-  type: NamespaceType;
+  type: AiIndexType;
   source: string;
   metadata?: Record<string, unknown>;
 }
 
-export interface NamespaceHttpItem extends NamespaceProperties {
+export interface AiIndexHttpItem extends AiIndexProperties {
   id: string;
   date_created: string;
   date_modified: string;
 }
 
-export type GetNamespaceResponse = NamespaceHttpItem;
+export type GetAiIndexResponse = AiIndexHttpItem;
 
-export interface ListNamespaceResponse {
-  namespaces: NamespaceHttpItem[];
+export interface ListAiIndexResponse {
+  ai_indices: AiIndexHttpItem[];
 }
 
-export interface PutNamespaceResponse {
+export interface PutAiIndexResponse {
   status: 'created' | 'updated';
 }
 
-export interface DeleteNamespaceResponse {
+export interface DeleteAiIndexResponse {
   acknowledged: boolean;
 }

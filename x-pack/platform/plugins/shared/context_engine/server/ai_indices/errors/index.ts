@@ -5,9 +5,6 @@
  * 2.0.
  */
 
-export class NamespaceConflictError extends Error {
-  constructor(namespaceId: string) {
-    super(`Namespace '${namespaceId}' was modified concurrently; please retry`);
-    this.name = 'NamespaceConflictError';
-  }
-}
+export { AiIndexNotFoundError } from './ai_index_not_found_error';
+export { InvalidAiIndexSourceError } from './invalid_ai_index_source_error';
+export { AiIndexConflictError } from './ai_index_conflict_error';

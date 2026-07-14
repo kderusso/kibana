@@ -5,6 +5,9 @@
  * 2.0.
  */
 
-export { NamespaceNotFoundError } from './namespace_not_found_error';
-export { InvalidNamespaceSourceError } from './invalid_namespace_source_error';
-export { NamespaceConflictError } from './namespace_conflict_error';
+export class InvalidAiIndexSourceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidAiIndexSourceError';
+  }
+}
