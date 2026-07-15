@@ -67,7 +67,6 @@ const aiIndexDocument: AiIndexDocument = {
   source: '.ai-index-customer_support*',
   date_created: '2026-07-08T12:10:30.000Z',
   date_modified: '2026-07-08T12:10:30.000Z',
-  metadata: { preferred_harnesses: ['langsmith'] },
 };
 
 describe('AiIndexService', () => {

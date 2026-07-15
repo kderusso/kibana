@@ -31,7 +31,6 @@ const toAiIndexItem = (id: string, document: AiIndexDocument): AiIndexHttpItem =
   source: document.source,
   date_created: document.date_created,
   date_modified: document.date_modified,
-  ...(document.metadata !== undefined && { metadata: document.metadata }),
 });
 
 /**

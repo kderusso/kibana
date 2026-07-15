@@ -22,7 +22,6 @@ const storageSettings = {
       date_modified: types.date({}),
       type: types.keyword({}),
       source: types.keyword({}),
-      metadata: types.flattened({}),
     },
   },
 } satisfies IndexStorageSettings;
@@ -34,7 +33,6 @@ export interface AiIndexDocument {
   date_modified: string;
   type: AiIndexType;
   source: string;
-  metadata?: Record<string, unknown>;
 }
 
 export type AiIndexStorageSettings = typeof storageSettings;

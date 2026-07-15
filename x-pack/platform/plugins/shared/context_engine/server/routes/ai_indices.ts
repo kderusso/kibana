@@ -79,11 +79,6 @@ const putAiIndexBodySchema = schema.object({
         'The data stream or index pattern (e.g. `.ai-index-foo`, `.ai-index-foo*`) the AI index is attached to. Must already exist, match `type`, and start with `.ai-index-`; system indices are not allowed.',
     },
   }),
-  metadata: schema.maybe(
-    schema.recordOf(schema.string(), schema.any(), {
-      meta: { description: 'Arbitrary metadata about the AI index, e.g. for UI purposes.' },
-    })
-  ),
 });
 
 const withContextEngineFeatureFlag =

@@ -16,7 +16,6 @@ export interface AiIndexProperties {
   description?: string;
   type: AiIndexType;
   source: string;
-  metadata?: Record<string, unknown>;
 }
 
 export interface AiIndexHttpItem extends AiIndexProperties {

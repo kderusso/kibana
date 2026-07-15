@@ -26,7 +26,6 @@ const aiIndexBody = {
   description: 'AI index created by the Scout API test suite',
   type: 'data_stream',
   source: SOURCE_DATA_STREAM,
-  metadata: { preferred_harnesses: ['scout'] },
 };
 
 apiTest.describe('context engine AI indices API', { tag: tags.stateful.classic }, () => {
