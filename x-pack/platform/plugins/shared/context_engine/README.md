@@ -25,5 +25,8 @@ Notes:
   `data_stream` for a data stream, or `index_pattern` for an index pattern (e.g.
   `.ai-index-foo`, `.ai-index-foo*`). Every resolved index (or data stream) must
   start with `.ai-index-`; system indices are not allowed.
+- `automations` is an array of keywords, and `sources` is an array of
+  `{ "type": "esql", "value": "<ES|QL query>" }` objects. Both are optional and
+  default to an empty array.
 - Deleting an AI index deletes **only** the AI index entry. Backing indices
   are left untouched and must be removed with the Delete index API if desired.

@@ -15,11 +15,20 @@ export interface AiIndexDest {
   index: string;
 }
 
+export type AiIndexSourceType = 'esql';
+
+export interface AiIndexSource {
+  type: AiIndexSourceType;
+  value: string;
+}
+
 export interface AiIndexProperties {
   name: string;
   description?: string;
   type: AiIndexType;
   dest: AiIndexDest;
+  automations: string[];
+  sources: AiIndexSource[];
 }
 
 export interface AiIndexHttpItem extends AiIndexProperties {

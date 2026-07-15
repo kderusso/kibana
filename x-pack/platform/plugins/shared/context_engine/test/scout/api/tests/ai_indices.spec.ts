@@ -26,6 +26,8 @@ const aiIndexBody = {
   description: 'AI index created by the Scout API test suite',
   type: 'data_stream',
   dest: { index: DEST_DATA_STREAM },
+  automations: ['scout-automation'],
+  sources: [{ type: 'esql', value: `FROM ${DEST_DATA_STREAM} | LIMIT 1` }],
 };
 
 apiTest.describe('context engine AI indices API', { tag: tags.stateful.classic }, () => {
@@ -137,6 +139,8 @@ apiTest.describe('context engine AI indices API', { tag: tags.stateful.classic }
           name: indexPatternAiIndexId,
           type: 'index_pattern',
           dest: { index: `${destIndex}*` },
+          automations: [],
+          sources: [],
         },
       });
       expect(createResponse).toHaveStatusCode(201);

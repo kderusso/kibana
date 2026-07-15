@@ -5,6 +5,7 @@
  * 2.0.
  */
 
+import type { Type } from '@kbn/config-schema';
 import type { IRouter, RequestHandler } from '@kbn/core/server';
 import { httpServerMock } from '@kbn/core/server/mocks';
 import { registerAiIndexRoutes } from './ai_indices';
@@ -24,6 +25,7 @@ interface RegisteredRoute {
     security: { authz: { requiredPrivileges: string[] } };
   };
   handler: RequestHandler;
+  validate: false | { request?: { params?: Type<unknown>; body?: Type<unknown> } };
 }
 
 describe('ai indices routes', () => {
@@ -59,8 +61,15 @@ describe('ai indices routes', () => {
     };
 
     const createVersionedRoute = (method: string) => (config: RegisteredRoute['config']) => ({
-      addVersion: (_versionConfig: unknown, handler: RequestHandler) => {
-        routes[`${method}:${config.path}`] = { config, handler };
+      addVersion: (
+        versionConfig: { validate: RegisteredRoute['validate'] },
+        handler: RequestHandler
+      ) => {
+        routes[`${method}:${config.path}`] = {
+          config,
+          handler,
+          validate: versionConfig.validate,
+        };
       },
     });
 
@@ -124,6 +133,8 @@ describe('ai indices routes', () => {
         name: 'customer_support',
         type: 'data_stream',
         dest: { index: 'customer_support*' },
+        automations: ['nightly-refresh'],
+        sources: [{ type: 'esql', value: 'FROM customer_support | LIMIT 10' }],
       },
     };
 
@@ -179,6 +190,8 @@ describe('ai indices routes', () => {
         name: 'customer_support',
         type: 'data_stream' as const,
         dest: { index: 'customer_support*' },
+        automations: ['nightly-refresh'],
+        sources: [{ type: 'esql' as const, value: 'FROM customer_support | LIMIT 10' }],
         date_created: '2026-07-08T12:10:30.000Z',
         date_modified: '2026-07-08T12:10:30.000Z',
       };
@@ -238,6 +251,49 @@ describe('ai indices routes', () => {
       expect(response.notFound).toHaveBeenCalledWith({
         body: { message: "AI index 'missing' not found" },
       });
+    });
+  });
+
+  describe('PUT body validation', () => {
+    const validBody = {
+      name: 'customer_support',
+      type: 'data_stream',
+      dest: { index: '.ai-index-customer_support' },
+      automations: ['nightly-refresh'],
+      sources: [{ type: 'esql', value: 'FROM .ai-index-customer_support | LIMIT 10' }],
+    };
+
+    const validateBody = (body: Record<string, unknown>) => {
+      const { validate } = getRoute('PUT', aiIndexByIdPath);
+      if (!validate || !validate.request?.body) {
+        throw new Error('expected a PUT body schema');
+      }
+      return validate.request.body.validate(body);
+    };
+
+    it('accepts a valid body', () => {
+      expect(() => validateBody(validBody)).not.toThrow();
+    });
+
+    it('accepts empty automations and sources arrays', () => {
+      expect(() => validateBody({ ...validBody, automations: [], sources: [] })).not.toThrow();
+    });
+
+    it('rejects a source with a disallowed type', () => {
+      expect(() =>
+        validateBody({ ...validBody, sources: [{ type: 'sql', value: 'SELECT 1' }] })
+      ).toThrow();
+    });
+
+    it('rejects automations and sources of different lengths', () => {
+      expect(() =>
+        validateBody({ ...validBody, automations: ['a', 'b'], sources: validBody.sources })
+      ).toThrow('automations and sources must have the same number of elements');
+    });
+
+    it('rejects a missing automations array', () => {
+      const { automations, ...bodyWithoutAutomations } = validBody;
+      expect(() => validateBody(bodyWithoutAutomations)).toThrow();
     });
   });
 });

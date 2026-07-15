@@ -65,6 +65,8 @@ const aiIndexDocument: AiIndexDocument = {
   description: 'KIs representing previously answered, commonly asked questions',
   type: 'data_stream',
   dest: { index: '.ai-index-customer_support*' },
+  automations: ['nightly-refresh'],
+  sources: [{ type: 'esql', value: 'FROM .ai-index-customer_support | LIMIT 10' }],
   date_created: '2026-07-08T12:10:30.000Z',
   date_modified: '2026-07-08T12:10:30.000Z',
 };
@@ -108,6 +110,8 @@ describe('AiIndexService', () => {
       description: 'KIs representing previously answered, commonly asked questions',
       type: 'data_stream' as const,
       dest: { index: '.ai-index-customer_support*' },
+      automations: ['nightly-refresh'],
+      sources: [{ type: 'esql' as const, value: 'FROM .ai-index-customer_support | LIMIT 10' }],
     };
 
     it('creates an AI index with op_type create when none exists', async () => {

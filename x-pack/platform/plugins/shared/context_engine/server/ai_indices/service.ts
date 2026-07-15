@@ -29,6 +29,8 @@ const toAiIndexItem = (id: string, document: AiIndexDocument): AiIndexHttpItem =
   ...(document.description !== undefined && { description: document.description }),
   type: document.type,
   dest: document.dest,
+  automations: document.automations,
+  sources: document.sources,
   date_created: document.date_created,
   date_modified: document.date_modified,
 });
