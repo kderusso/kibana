@@ -19,10 +19,9 @@ import type { AiIndexDocument, AiIndexStorageClient } from './storage';
 import { createAiIndexStorageClient } from './storage';
 
 /**
- * AI index sources must be context-engine indices, which follow the `.context-`
- * naming convention.
+ * AI index sources must follow the `.ai-index-` naming convention.
  */
-const SOURCE_INDEX_PREFIX = '.context-';
+const SOURCE_INDEX_PREFIX = '.ai-index-';
 
 const toAiIndexItem = (id: string, document: AiIndexDocument): AiIndexHttpItem => ({
   id,

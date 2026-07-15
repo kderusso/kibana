@@ -76,7 +76,7 @@ const putAiIndexBodySchema = schema.object({
     maxLength: MAX_AI_INDEX_SOURCE_LENGTH,
     meta: {
       description:
-        'The data stream or index pattern (e.g. `.context-foo`, `.context-foo*`) the AI index is attached to. Must already exist, match `type`, and start with `.context-`; system indices are not allowed.',
+        'The data stream or index pattern (e.g. `.ai-index-foo`, `.ai-index-foo*`) the AI index is attached to. Must already exist, match `type`, and start with `.ai-index-`; system indices are not allowed.',
     },
   }),
   metadata: schema.maybe(

@@ -12,7 +12,7 @@ import { apiTest, testData } from '../fixtures';
 
 const AI_INDEX_ID = 'scout_test_ai_index';
 const AI_INDEX_PATH = `api/context_engine/ai_index/${AI_INDEX_ID}`;
-const SOURCE_DATA_STREAM = '.context-scout-test-source';
+const SOURCE_DATA_STREAM = '.ai-index-scout-test-source';
 const SOURCE_INDEX_TEMPLATE = 'scout-test-context-engine-template';
 const CONTEXT_ENGINE_ENABLED_SETTING = 'contextEngine:enabled';
 
@@ -127,7 +127,7 @@ apiTest.describe('context engine AI indices API', { tag: tags.stateful.classic }
   apiTest('creates and reads an index_pattern AI index', async ({ apiClient, esClient }) => {
     const indexPatternAiIndexId = 'scout_test_index_pattern_ai_index';
     const indexPatternPath = `api/context_engine/ai_index/${indexPatternAiIndexId}`;
-    const sourceIndex = '.context-scout-test-index';
+    const sourceIndex = '.ai-index-scout-test-index';
     await esClient.indices.create({ index: sourceIndex });
 
     try {
@@ -169,7 +169,7 @@ apiTest.describe('context engine AI indices API', { tag: tags.stateful.classic }
   });
 
   apiTest('rejects a source that is not a data stream', async ({ apiClient, esClient }) => {
-    const plainIndex = '.context-scout-test-plain-index';
+    const plainIndex = '.ai-index-scout-test-plain-index';
     await esClient.indices.create({ index: plainIndex });
 
     try {
