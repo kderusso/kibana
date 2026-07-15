@@ -8,7 +8,7 @@
 import type { ElasticsearchClient, Logger } from '@kbn/core/server';
 import type { IndexStorageSettings, IStorageClient } from '@kbn/storage-adapter';
 import { StorageIndexAdapter, types } from '@kbn/storage-adapter';
-import type { AiIndexType } from '../../common/http_api/ai_indices';
+import type { AiIndexDest, AiIndexType } from '../../common/http_api/ai_indices';
 
 export const aiIndicesIndexName = '.contextengine-ai-indices';
 
@@ -21,7 +21,7 @@ const storageSettings = {
       date_created: types.date({}),
       date_modified: types.date({}),
       type: types.keyword({}),
-      source: types.keyword({}),
+      dest: types.object({ properties: { index: types.keyword({}) } }),
     },
   },
 } satisfies IndexStorageSettings;
@@ -32,7 +32,7 @@ export interface AiIndexDocument {
   date_created: string;
   date_modified: string;
   type: AiIndexType;
-  source: string;
+  dest: AiIndexDest;
 }
 
 export type AiIndexStorageSettings = typeof storageSettings;

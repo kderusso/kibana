@@ -5,9 +5,9 @@
  * 2.0.
  */
 
-export class InvalidAiIndexSourceError extends Error {
+export class InvalidAiIndexDestError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'InvalidAiIndexSourceError';
+    this.name = 'InvalidAiIndexDestError';
   }
 }

@@ -6,16 +6,20 @@
  */
 
 /**
- * The type of source an AI index is attached to. `index_pattern` covers a
- * concrete index name or an index pattern (e.g. `foo`, `foo,bar`, `foo*`).
+ * The type of backing index an AI index is attached to. `index_pattern` covers
+ * a concrete index name or an index pattern (e.g. `foo`, `foo,bar`, `foo*`).
  */
 export type AiIndexType = 'data_stream' | 'index_pattern';
+
+export interface AiIndexDest {
+  index: string;
+}
 
 export interface AiIndexProperties {
   name: string;
   description?: string;
   type: AiIndexType;
-  source: string;
+  dest: AiIndexDest;
 }
 
 export interface AiIndexHttpItem extends AiIndexProperties {

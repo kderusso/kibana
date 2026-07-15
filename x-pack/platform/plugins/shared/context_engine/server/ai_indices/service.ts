@@ -14,21 +14,21 @@ import type {
   AiIndexProperties,
   AiIndexType,
 } from '../../common/http_api/ai_indices';
-import { InvalidAiIndexSourceError, AiIndexConflictError, AiIndexNotFoundError } from './errors';
+import { InvalidAiIndexDestError, AiIndexConflictError, AiIndexNotFoundError } from './errors';
 import type { AiIndexDocument, AiIndexStorageClient } from './storage';
 import { createAiIndexStorageClient } from './storage';
 
 /**
- * AI index sources must follow the `.ai-index-` naming convention.
+ * An AI index `dest.index` must follow the `.ai-index-` naming convention.
  */
-const SOURCE_INDEX_PREFIX = '.ai-index-';
+const DEST_INDEX_PREFIX = '.ai-index-';
 
 const toAiIndexItem = (id: string, document: AiIndexDocument): AiIndexHttpItem => ({
   id,
   name: document.name,
   ...(document.description !== undefined && { description: document.description }),
   type: document.type,
-  source: document.source,
+  dest: document.dest,
   date_created: document.date_created,
   date_modified: document.date_modified,
 });
@@ -53,7 +53,7 @@ export class AiIndexService {
    * writer gets a {@link AiIndexConflictError}.
    */
   async put(aiIndexId: string, properties: AiIndexProperties): Promise<'created' | 'updated'> {
-    await this.assertValidSource(properties.source, properties.type);
+    await this.assertValidDest(properties.dest.index, properties.type);
 
     const existing = await this.findDocument(aiIndexId);
     const now = new Date().toISOString();
@@ -138,23 +138,23 @@ export class AiIndexService {
   }
 
   /**
-   * The source must exist and match the declared `type`. Only `system` sources
-   * are rejected (via the flag ES reports); `hidden` is allowed, since many
-   * legitimate customer indices are hidden.
+   * The dest index must exist and match the declared `type`. Only `system`
+   * indices are rejected (via the flag ES reports); `hidden` is allowed, since
+   * many legitimate customer indices are hidden.
    */
-  private async assertValidSource(source: string, type: AiIndexType): Promise<void> {
+  private async assertValidDest(destIndex: string, type: AiIndexType): Promise<void> {
     if (type === 'data_stream') {
-      await this.assertValidDataStreamSource(source);
+      await this.assertValidDataStreamDest(destIndex);
     } else {
-      await this.assertValidIndexPatternSource(source);
+      await this.assertValidIndexPatternDest(destIndex);
     }
   }
 
-  private async assertValidDataStreamSource(source: string): Promise<void> {
+  private async assertValidDataStreamDest(destIndex: string): Promise<void> {
     let dataStreams: estypes.IndicesDataStream[] = [];
     try {
       const response = await this.esClient.indices.getDataStream({
-        name: source,
+        name: destIndex,
         expand_wildcards: 'all',
       });
       dataStreams = response.data_streams;
@@ -165,32 +165,32 @@ export class AiIndexService {
     }
 
     if (dataStreams.length === 0) {
-      throw new InvalidAiIndexSourceError(
-        `Source '${source}' must resolve to an existing data stream`
+      throw new InvalidAiIndexDestError(
+        `dest.index '${destIndex}' must resolve to an existing data stream`
       );
     }
 
     const invalidPrefix = dataStreams.find(
-      (dataStream) => !dataStream.name.startsWith(SOURCE_INDEX_PREFIX)
+      (dataStream) => !dataStream.name.startsWith(DEST_INDEX_PREFIX)
     );
     if (invalidPrefix) {
-      throw new InvalidAiIndexSourceError(
-        `Source '${source}' is not allowed: '${invalidPrefix.name}' must start with '${SOURCE_INDEX_PREFIX}'`
+      throw new InvalidAiIndexDestError(
+        `dest.index '${destIndex}' is not allowed: '${invalidPrefix.name}' must start with '${DEST_INDEX_PREFIX}'`
       );
     }
 
     const system = dataStreams.find((dataStream) => dataStream.system);
     if (system) {
-      throw new InvalidAiIndexSourceError(
-        `Source '${source}' is not allowed: '${system.name}' is a system data stream`
+      throw new InvalidAiIndexDestError(
+        `dest.index '${destIndex}' is not allowed: '${system.name}' is a system data stream`
       );
     }
   }
 
-  private async assertValidIndexPatternSource(source: string): Promise<void> {
+  private async assertValidIndexPatternDest(destIndex: string): Promise<void> {
     let indices: estypes.IndicesResolveIndexResolveIndexItem[] = [];
     try {
-      const resolved = await this.esClient.indices.resolveIndex({ name: source });
+      const resolved = await this.esClient.indices.resolveIndex({ name: destIndex });
       indices = resolved.indices;
     } catch (error) {
       if (!(isResponseError(error) && error.statusCode === 404)) {
@@ -199,22 +199,22 @@ export class AiIndexService {
     }
 
     if (indices.length === 0) {
-      throw new InvalidAiIndexSourceError(
-        `Source '${source}' must match at least one existing index`
+      throw new InvalidAiIndexDestError(
+        `dest.index '${destIndex}' must match at least one existing index`
       );
     }
 
-    const invalidPrefix = indices.find((index) => !index.name.startsWith(SOURCE_INDEX_PREFIX));
+    const invalidPrefix = indices.find((index) => !index.name.startsWith(DEST_INDEX_PREFIX));
     if (invalidPrefix) {
-      throw new InvalidAiIndexSourceError(
-        `Source '${source}' is not allowed: '${invalidPrefix.name}' must start with '${SOURCE_INDEX_PREFIX}'`
+      throw new InvalidAiIndexDestError(
+        `dest.index '${destIndex}' is not allowed: '${invalidPrefix.name}' must start with '${DEST_INDEX_PREFIX}'`
       );
     }
 
     const system = indices.find((index) => index.attributes.includes('system'));
     if (system) {
-      throw new InvalidAiIndexSourceError(
-        `Source '${source}' is not allowed: '${system.name}' is a system index`
+      throw new InvalidAiIndexDestError(
+        `dest.index '${destIndex}' is not allowed: '${system.name}' is a system index`
       );
     }
   }

@@ -13,7 +13,7 @@ import {
   MAX_AI_INDEX_DESCRIPTION_LENGTH,
   MAX_AI_INDEX_ID_LENGTH,
   MAX_AI_INDEX_NAME_LENGTH,
-  MAX_AI_INDEX_SOURCE_LENGTH,
+  MAX_AI_INDEX_DEST_INDEX_LENGTH,
   MAX_AI_INDICES,
   aiIndexByIdPath,
   aiIndexPath,
@@ -26,7 +26,7 @@ import type {
 } from '../../common/http_api/ai_indices';
 import { apiPrivileges } from '../../common/features';
 import {
-  InvalidAiIndexSourceError,
+  InvalidAiIndexDestError,
   AiIndexConflictError,
   AiIndexNotFoundError,
 } from '../ai_indices/errors';
@@ -68,16 +68,18 @@ const putAiIndexBodySchema = schema.object({
   type: schema.oneOf([schema.literal('data_stream'), schema.literal('index_pattern')], {
     meta: {
       description:
-        'The type of the backing source. `data_stream` for a data stream, or `index_pattern` for an index pattern.',
+        'The type of the backing index. `data_stream` for a data stream, or `index_pattern` for an index pattern.',
     },
   }),
-  source: schema.string({
-    minLength: 1,
-    maxLength: MAX_AI_INDEX_SOURCE_LENGTH,
-    meta: {
-      description:
-        'The data stream or index pattern (e.g. `.ai-index-foo`, `.ai-index-foo*`) the AI index is attached to. Must already exist, match `type`, and start with `.ai-index-`; system indices are not allowed.',
-    },
+  dest: schema.object({
+    index: schema.string({
+      minLength: 1,
+      maxLength: MAX_AI_INDEX_DEST_INDEX_LENGTH,
+      meta: {
+        description:
+          'The data stream or index pattern (e.g. `.ai-index-foo`, `.ai-index-foo*`) the AI index is attached to. Must already exist, match `type`, and start with `.ai-index-`; system indices are not allowed.',
+      },
+    }),
   }),
 });
 
@@ -94,7 +96,7 @@ const withContextEngineFeatureFlag =
   };
 
 const handleAiIndexError = (error: unknown, response: KibanaResponseFactory) => {
-  if (error instanceof InvalidAiIndexSourceError) {
+  if (error instanceof InvalidAiIndexDestError) {
     return response.badRequest({ body: { message: error.message } });
   }
   if (error instanceof AiIndexNotFoundError) {

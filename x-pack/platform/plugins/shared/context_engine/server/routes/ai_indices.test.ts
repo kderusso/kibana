@@ -11,7 +11,7 @@ import { registerAiIndexRoutes } from './ai_indices';
 import { aiIndexByIdPath, aiIndexPath } from '../../common/constants';
 import { apiPrivileges } from '../../common/features';
 import {
-  InvalidAiIndexSourceError,
+  InvalidAiIndexDestError,
   AiIndexConflictError,
   AiIndexNotFoundError,
 } from '../ai_indices/errors';
@@ -123,7 +123,7 @@ describe('ai indices routes', () => {
       body: {
         name: 'customer_support',
         type: 'data_stream',
-        source: 'customer_support*',
+        dest: { index: 'customer_support*' },
       },
     };
 
@@ -144,10 +144,10 @@ describe('ai indices routes', () => {
       expect(response.ok).toHaveBeenCalledWith({ body: { status: 'updated' } });
     });
 
-    it('returns 400 when the source is invalid', async () => {
+    it('returns 400 when the dest is invalid', async () => {
       aiIndexService.put.mockRejectedValue(
-        new InvalidAiIndexSourceError(
-          "Source 'customer_support*' does not match any existing index, index pattern, or data stream"
+        new InvalidAiIndexDestError(
+          "dest.index 'customer_support*' does not match any existing index, index pattern, or data stream"
         )
       );
 
@@ -156,7 +156,7 @@ describe('ai indices routes', () => {
       expect(response.badRequest).toHaveBeenCalledWith({
         body: {
           message:
-            "Source 'customer_support*' does not match any existing index, index pattern, or data stream",
+            "dest.index 'customer_support*' does not match any existing index, index pattern, or data stream",
         },
       });
     });
@@ -178,7 +178,7 @@ describe('ai indices routes', () => {
         id: 'customer_support',
         name: 'customer_support',
         type: 'data_stream' as const,
-        source: 'customer_support*',
+        dest: { index: 'customer_support*' },
         date_created: '2026-07-08T12:10:30.000Z',
         date_modified: '2026-07-08T12:10:30.000Z',
       };

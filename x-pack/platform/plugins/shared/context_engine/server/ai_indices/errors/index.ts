@@ -6,5 +6,5 @@
  */
 
 export { AiIndexNotFoundError } from './ai_index_not_found_error';
-export { InvalidAiIndexSourceError } from './invalid_ai_index_source_error';
+export { InvalidAiIndexDestError } from './invalid_ai_index_dest_error';
 export { AiIndexConflictError } from './ai_index_conflict_error';
