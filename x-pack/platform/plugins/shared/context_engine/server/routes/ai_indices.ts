@@ -88,7 +88,7 @@ const putAiIndexBodySchema = schema.object({
   automations: schema.arrayOf(
     schema.object({
       type: schema.literal('workflow'),
-      value: schema.string({ minLength: 1, maxLength: MAX_AI_INDEX_AUTOMATION_LENGTH }),
+      value: schema.string({ minLength: 0, maxLength: MAX_AI_INDEX_AUTOMATION_LENGTH }),
     }),
     {
       maxSize: MAX_AI_INDEX_AUTOMATIONS,
@@ -99,7 +99,7 @@ const putAiIndexBodySchema = schema.object({
     schema.object({
       type: schema.literal('esql'),
       value: schema.string({
-        minLength: 1,
+        minLength: 0,
         maxLength: MAX_AI_INDEX_SOURCE_VALUE_LENGTH,
         meta: { description: 'The source value; an ES|QL query when `type` is `esql`.' },
       }),

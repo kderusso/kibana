@@ -278,6 +278,16 @@ describe('ai indices routes', () => {
       expect(() => validateBody({ ...validBody, automations: [], sources: [] })).not.toThrow();
     });
 
+    it('accepts automations and sources with empty values', () => {
+      expect(() =>
+        validateBody({
+          ...validBody,
+          automations: [{ type: 'workflow', value: '' }],
+          sources: [{ type: 'esql', value: '' }],
+        })
+      ).not.toThrow();
+    });
+
     it('rejects a disallowed dest type', () => {
       expect(() =>
         validateBody({ ...validBody, dest: { type: 'view', value: '.ai-index-idx-foo' } })
