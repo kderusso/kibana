@@ -12,7 +12,13 @@ import { apiTest, testData } from '../fixtures';
 
 const AI_INDEX_ID = 'scout_test_ai_index';
 const AI_INDEX_PATH = `api/context_engine/ai_index/${AI_INDEX_ID}`;
+const INDEX_AI_INDEX_ID = 'scout_test_index_ai_index';
+const INDEX_AI_INDEX_PATH = `api/context_engine/ai_index/${INDEX_AI_INDEX_ID}`;
 const DEST_DATA_STREAM = '.ai-index-ds-scout-test';
+const DEST_INDEX = '.ai-index-idx-scout-test';
+// Must not match the data stream template pattern (`${DEST_DATA_STREAM}*`),
+// or ES refuses to create it as a plain index.
+const PLAIN_INDEX = '.ai-index-ds-plain-scout-test';
 const DEST_INDEX_TEMPLATE = 'scout-test-context-engine-template';
 const CONTEXT_ENGINE_ENABLED_SETTING = 'contextEngine:enabled';
 
@@ -44,74 +50,107 @@ apiTest.describe('context engine AI indices API', { tag: tags.stateful.classic }
       priority: 500,
     });
     await esClient.indices.createDataStream({ name: DEST_DATA_STREAM });
+    await esClient.indices.create({ index: DEST_INDEX });
+    await esClient.indices.create({ index: PLAIN_INDEX });
   });
 
   apiTest.afterAll(async ({ apiClient, kbnClient, esClient }) => {
+    // AI index deletes tolerate records that were never created (404).
     await apiClient.delete(AI_INDEX_PATH, {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
     });
+    await apiClient.delete(INDEX_AI_INDEX_PATH, {
+      headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
+      responseType: 'json',
+    });
+    await esClient.indices.delete({ index: DEST_INDEX }, { ignore: [404] });
+    await esClient.indices.delete({ index: PLAIN_INDEX }, { ignore: [404] });
     await esClient.indices.deleteDataStream({ name: DEST_DATA_STREAM }, { ignore: [404] });
     await esClient.indices.deleteIndexTemplate({ name: DEST_INDEX_TEMPLATE }, { ignore: [404] });
     await kbnClient.uiSettings.unset(CONTEXT_ENGINE_ENABLED_SETTING);
   });
 
-  apiTest('creates an AI index attached to an existing dest', async ({ apiClient }) => {
-    const response = await apiClient.put(AI_INDEX_PATH, {
-      headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
-      responseType: 'json',
-      body: aiIndexBody,
+  apiTest('manages an AI index through its full lifecycle', async ({ apiClient }) => {
+    let dateCreated: string;
+
+    await apiTest.step('creates the AI index', async () => {
+      const response = await apiClient.put(AI_INDEX_PATH, {
+        headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
+        responseType: 'json',
+        body: aiIndexBody,
+      });
+
+      expect(response).toHaveStatusCode(201);
+      expect(response.body).toStrictEqual({ status: 'created' });
     });
 
-    expect(response).toHaveStatusCode(201);
-    expect(response.body).toStrictEqual({ status: 'created' });
-  });
+    await apiTest.step('gets the AI index by id', async () => {
+      const response = await apiClient.get(AI_INDEX_PATH, {
+        headers: { ...viewerApiCredentials.apiKeyHeader, ...API_HEADERS },
+        responseType: 'json',
+      });
 
-  apiTest('gets the AI index by id', async ({ apiClient }) => {
-    const response = await apiClient.get(AI_INDEX_PATH, {
-      headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
-      responseType: 'json',
+      expect(response).toHaveStatusCode(200);
+      expect(response.body).toMatchObject({ id: AI_INDEX_ID, ...aiIndexBody });
+      expect(response.body.date_created).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(response.body.date_modified).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      dateCreated = response.body.date_created;
     });
 
-    expect(response).toHaveStatusCode(200);
-    expect(response.body).toMatchObject({ id: AI_INDEX_ID, ...aiIndexBody });
-    expect(response.body.date_created).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    expect(response.body.date_modified).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-  });
+    await apiTest.step('lists the AI index', async () => {
+      const response = await apiClient.get('api/context_engine/ai_index', {
+        headers: { ...viewerApiCredentials.apiKeyHeader, ...API_HEADERS },
+        responseType: 'json',
+      });
 
-  apiTest('lists the AI index', async ({ apiClient }) => {
-    const response = await apiClient.get('api/context_engine/ai_index', {
-      headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
-      responseType: 'json',
+      expect(response).toHaveStatusCode(200);
+      expect(response.body.ai_indices).toStrictEqual(
+        expect.arrayContaining([expect.objectContaining({ id: AI_INDEX_ID })])
+      );
     });
 
-    expect(response).toHaveStatusCode(200);
-    expect(response.body.ai_indices).toStrictEqual(
-      expect.arrayContaining([expect.objectContaining({ id: AI_INDEX_ID })])
-    );
-  });
+    await apiTest.step('updates the AI index and preserves date_created', async () => {
+      const response = await apiClient.put(AI_INDEX_PATH, {
+        headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
+        responseType: 'json',
+        body: { ...aiIndexBody, description: 'Updated description' },
+      });
 
-  apiTest('updates the AI index and preserves date_created', async ({ apiClient }) => {
-    const createdResponse = await apiClient.get(AI_INDEX_PATH, {
-      headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
-      responseType: 'json',
+      expect(response).toHaveStatusCode(200);
+      expect(response.body).toStrictEqual({ status: 'updated' });
+
+      const updatedResponse = await apiClient.get(AI_INDEX_PATH, {
+        headers: { ...viewerApiCredentials.apiKeyHeader, ...API_HEADERS },
+        responseType: 'json',
+      });
+      expect(updatedResponse.body.description).toBe('Updated description');
+      expect(updatedResponse.body.date_created).toBe(dateCreated);
     });
 
-    const response = await apiClient.put(AI_INDEX_PATH, {
-      headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
-      responseType: 'json',
-      body: { ...aiIndexBody, description: 'Updated description' },
+    await apiTest.step('deletes the AI index', async () => {
+      const response = await apiClient.delete(AI_INDEX_PATH, {
+        headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
+        responseType: 'json',
+      });
+
+      expect(response).toHaveStatusCode(200);
+      expect(response.body).toStrictEqual({ acknowledged: true });
     });
 
-    expect(response).toHaveStatusCode(200);
-    expect(response.body).toStrictEqual({ status: 'updated' });
+    await apiTest.step('returns 404 once deleted', async () => {
+      const getResponse = await apiClient.get(AI_INDEX_PATH, {
+        headers: { ...viewerApiCredentials.apiKeyHeader, ...API_HEADERS },
+        responseType: 'json',
+      });
+      expect(getResponse).toHaveStatusCode(404);
 
-    const updatedResponse = await apiClient.get(AI_INDEX_PATH, {
-      headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
-      responseType: 'json',
+      const deleteResponse = await apiClient.delete(AI_INDEX_PATH, {
+        headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
+        responseType: 'json',
+      });
+      expect(deleteResponse).toHaveStatusCode(404);
     });
-    expect(updatedResponse.body.description).toBe('Updated description');
-    expect(updatedResponse.body.date_created).toBe(createdResponse.body.date_created);
   });
 
   apiTest('rejects an AI index whose dest does not exist', async ({ apiClient }) => {
@@ -124,42 +163,29 @@ apiTest.describe('context engine AI indices API', { tag: tags.stateful.classic }
     expect(response).toHaveStatusCode(400);
   });
 
-  apiTest('creates and reads an index AI index', async ({ apiClient, esClient }) => {
-    const indexAiIndexId = 'scout_test_index_ai_index';
-    const indexPath = `api/context_engine/ai_index/${indexAiIndexId}`;
-    const destIndex = '.ai-index-idx-scout-test';
-    await esClient.indices.create({ index: destIndex });
+  apiTest('creates and reads an index AI index', async ({ apiClient }) => {
+    const createResponse = await apiClient.put(INDEX_AI_INDEX_PATH, {
+      headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
+      responseType: 'json',
+      body: {
+        name: INDEX_AI_INDEX_ID,
+        dest: { type: 'index', value: `${DEST_INDEX}*` },
+        automations: [],
+        sources: [],
+      },
+    });
+    expect(createResponse).toHaveStatusCode(201);
+    expect(createResponse.body).toStrictEqual({ status: 'created' });
 
-    try {
-      const createResponse = await apiClient.put(indexPath, {
-        headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
-        responseType: 'json',
-        body: {
-          name: indexAiIndexId,
-          dest: { type: 'index', value: `${destIndex}*` },
-          automations: [],
-          sources: [],
-        },
-      });
-      expect(createResponse).toHaveStatusCode(201);
-      expect(createResponse.body).toStrictEqual({ status: 'created' });
-
-      const getResponse = await apiClient.get(indexPath, {
-        headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
-        responseType: 'json',
-      });
-      expect(getResponse).toHaveStatusCode(200);
-      expect(getResponse.body).toMatchObject({
-        id: indexAiIndexId,
-        dest: { type: 'index', value: `${destIndex}*` },
-      });
-    } finally {
-      await apiClient.delete(indexPath, {
-        headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
-        responseType: 'json',
-      });
-      await esClient.indices.delete({ index: destIndex }, { ignore: [404] });
-    }
+    const getResponse = await apiClient.get(INDEX_AI_INDEX_PATH, {
+      headers: { ...viewerApiCredentials.apiKeyHeader, ...API_HEADERS },
+      responseType: 'json',
+    });
+    expect(getResponse).toHaveStatusCode(200);
+    expect(getResponse.body).toMatchObject({
+      id: INDEX_AI_INDEX_ID,
+      dest: { type: 'index', value: `${DEST_INDEX}*` },
+    });
   });
 
   apiTest('rejects a system index as an index dest', async ({ apiClient }) => {
@@ -172,21 +198,14 @@ apiTest.describe('context engine AI indices API', { tag: tags.stateful.classic }
     expect(response).toHaveStatusCode(400);
   });
 
-  apiTest('rejects a dest that is not a data stream', async ({ apiClient, esClient }) => {
-    const plainIndex = '.ai-index-ds-scout-test-plain';
-    await esClient.indices.create({ index: plainIndex });
+  apiTest('rejects a dest that is not a data stream', async ({ apiClient }) => {
+    const response = await apiClient.put(AI_INDEX_PATH, {
+      headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
+      responseType: 'json',
+      body: { ...aiIndexBody, dest: { type: 'data_stream', value: PLAIN_INDEX } },
+    });
 
-    try {
-      const response = await apiClient.put(AI_INDEX_PATH, {
-        headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
-        responseType: 'json',
-        body: { ...aiIndexBody, dest: { type: 'data_stream', value: plainIndex } },
-      });
-
-      expect(response).toHaveStatusCode(400);
-    } finally {
-      await esClient.indices.delete({ index: plainIndex }, { ignore: [404] });
-    }
+    expect(response).toHaveStatusCode(400);
   });
 
   apiTest('rejects a request without the required dest field', async ({ apiClient }) => {
@@ -218,29 +237,5 @@ apiTest.describe('context engine AI indices API', { tag: tags.stateful.classic }
     });
 
     expect(response).toHaveStatusCode(200);
-  });
-
-  apiTest('deletes the AI index', async ({ apiClient }) => {
-    const response = await apiClient.delete(AI_INDEX_PATH, {
-      headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
-      responseType: 'json',
-    });
-
-    expect(response).toHaveStatusCode(200);
-    expect(response.body).toStrictEqual({ acknowledged: true });
-  });
-
-  apiTest('returns 404 for a deleted AI index', async ({ apiClient }) => {
-    const getResponse = await apiClient.get(AI_INDEX_PATH, {
-      headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
-      responseType: 'json',
-    });
-    expect(getResponse).toHaveStatusCode(404);
-
-    const deleteResponse = await apiClient.delete(AI_INDEX_PATH, {
-      headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
-      responseType: 'json',
-    });
-    expect(deleteResponse).toHaveStatusCode(404);
   });
 });

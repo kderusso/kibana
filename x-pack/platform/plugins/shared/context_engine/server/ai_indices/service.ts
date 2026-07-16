@@ -219,7 +219,12 @@ export class AiIndexService {
 
     let indices: estypes.IndicesResolveIndexResolveIndexItem[] = [];
     try {
-      const resolved = await this.esClient.indices.resolveIndex({ name: value });
+      // Include hidden indices to mirror the data stream path ('all' there is
+      // equivalent, since data streams cannot be closed).
+      const resolved = await this.esClient.indices.resolveIndex({
+        name: value,
+        expand_wildcards: ['open', 'hidden'],
+      });
       indices = resolved.indices;
     } catch (error) {
       if (!(isResponseError(error) && error.statusCode === 404)) {

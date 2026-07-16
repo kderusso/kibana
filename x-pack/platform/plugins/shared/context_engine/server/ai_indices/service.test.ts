@@ -289,6 +289,11 @@ describe('AiIndexService', () => {
       storageClient.get.mockRejectedValue(createNotFoundError());
 
       await expect(service.put('logs', indexProperties)).resolves.toBe('created');
+      // Hidden indices only resolve when expand_wildcards includes them.
+      expect(esClient.indices.resolveIndex).toHaveBeenCalledWith({
+        name: indexProperties.dest.value,
+        expand_wildcards: ['open', 'hidden'],
+      });
       expect(storageClient.index).toHaveBeenCalled();
     });
 

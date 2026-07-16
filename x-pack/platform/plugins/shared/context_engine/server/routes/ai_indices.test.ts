@@ -313,5 +313,21 @@ describe('ai indices routes', () => {
       const { automations, ...bodyWithoutAutomations } = validBody;
       expect(() => validateBody(bodyWithoutAutomations)).toThrow();
     });
+
+    it('rejects automations exceeding the max size', () => {
+      const automations = Array.from({ length: 101 }, (_, i) => ({
+        type: 'workflow',
+        value: `workflow-${i}`,
+      }));
+      expect(() => validateBody({ ...validBody, automations })).toThrow();
+    });
+
+    it('rejects sources exceeding the max size', () => {
+      const sources = Array.from({ length: 101 }, (_, i) => ({
+        type: 'esql',
+        value: `FROM index-${i}`,
+      }));
+      expect(() => validateBody({ ...validBody, sources })).toThrow();
+    });
   });
 });

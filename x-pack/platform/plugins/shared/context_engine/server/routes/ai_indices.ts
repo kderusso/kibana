@@ -11,11 +11,13 @@ import type { RouteSecurity } from '@kbn/core-http-server';
 import { CONTEXT_ENGINE_ENABLED_SETTING_ID } from '@kbn/management-settings-ids';
 import {
   MAX_AI_INDEX_AUTOMATION_LENGTH,
+  MAX_AI_INDEX_AUTOMATIONS,
   MAX_AI_INDEX_DESCRIPTION_LENGTH,
   MAX_AI_INDEX_DEST_VALUE_LENGTH,
   MAX_AI_INDEX_ID_LENGTH,
   MAX_AI_INDEX_NAME_LENGTH,
   MAX_AI_INDEX_SOURCE_VALUE_LENGTH,
+  MAX_AI_INDEX_SOURCES,
   MAX_AI_INDICES,
   aiIndexByIdPath,
   aiIndexPath,
@@ -88,7 +90,10 @@ const putAiIndexBodySchema = schema.object({
       type: schema.literal('workflow'),
       value: schema.string({ minLength: 1, maxLength: MAX_AI_INDEX_AUTOMATION_LENGTH }),
     }),
-    { meta: { description: 'Automations associated with the AI index.' } }
+    {
+      maxSize: MAX_AI_INDEX_AUTOMATIONS,
+      meta: { description: 'Automations associated with the AI index.' },
+    }
   ),
   sources: schema.arrayOf(
     schema.object({
@@ -99,7 +104,10 @@ const putAiIndexBodySchema = schema.object({
         meta: { description: 'The source value; an ES|QL query when `type` is `esql`.' },
       }),
     }),
-    { meta: { description: 'Additional sources that provide context for the AI index.' } }
+    {
+      maxSize: MAX_AI_INDEX_SOURCES,
+      meta: { description: 'Additional sources that provide context for the AI index.' },
+    }
   ),
 });
 
