@@ -12,7 +12,7 @@ import { CONTEXT_ENGINE_ENABLED_SETTING_ID } from '@kbn/management-settings-ids'
 import {
   MAX_AI_INDEX_AUTOMATION_LENGTH,
   MAX_AI_INDEX_DESCRIPTION_LENGTH,
-  MAX_AI_INDEX_DEST_INDEX_LENGTH,
+  MAX_AI_INDEX_DEST_VALUE_LENGTH,
   MAX_AI_INDEX_ID_LENGTH,
   MAX_AI_INDEX_NAME_LENGTH,
   MAX_AI_INDEX_SOURCE_VALUE_LENGTH,
@@ -67,25 +67,28 @@ const putAiIndexBodySchema = schema.object({
       meta: { description: 'Human-readable description of the AI index.' },
     })
   ),
-  type: schema.oneOf([schema.literal('data_stream'), schema.literal('index_pattern')], {
-    meta: {
-      description:
-        'The type of the backing index. `data_stream` for a data stream, or `index_pattern` for an index pattern.',
-    },
-  }),
   dest: schema.object({
-    index: schema.string({
-      minLength: 1,
-      maxLength: MAX_AI_INDEX_DEST_INDEX_LENGTH,
+    type: schema.oneOf([schema.literal('data_stream'), schema.literal('index')], {
       meta: {
         description:
-          'The data stream or index pattern (e.g. `.ai-index-foo`, `.ai-index-foo*`) the AI index is attached to. Must already exist, match `type`, and start with `.ai-index-`; system indices are not allowed.',
+          'The type of the backing store. `data_stream` for a data stream, or `index` for an index or index pattern.',
+      },
+    }),
+    value: schema.string({
+      minLength: 1,
+      maxLength: MAX_AI_INDEX_DEST_VALUE_LENGTH,
+      meta: {
+        description:
+          'The data stream or index (e.g. `.ai-index-ds-foo`, `.ai-index-idx-foo*`) the AI index is attached to. Must already exist and match `type`, and start with `.ai-index-ds-` (for `data_stream`) or `.ai-index-idx-` (for `index`); system indices are not allowed.',
       },
     }),
   }),
   automations: schema.arrayOf(
-    schema.string({ minLength: 1, maxLength: MAX_AI_INDEX_AUTOMATION_LENGTH }),
-    { meta: { description: 'Automation keywords associated with the AI index.' } }
+    schema.object({
+      type: schema.literal('workflow'),
+      value: schema.string({ minLength: 1, maxLength: MAX_AI_INDEX_AUTOMATION_LENGTH }),
+    }),
+    { meta: { description: 'Automations associated with the AI index.' } }
   ),
   sources: schema.arrayOf(
     schema.object({

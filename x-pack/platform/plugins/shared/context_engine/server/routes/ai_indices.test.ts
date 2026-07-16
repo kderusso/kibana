@@ -131,10 +131,9 @@ describe('ai indices routes', () => {
       params: { aiIndexId: 'customer_support' },
       body: {
         name: 'customer_support',
-        type: 'data_stream',
-        dest: { index: 'customer_support*' },
-        automations: ['nightly-refresh'],
-        sources: [{ type: 'esql', value: 'FROM customer_support | LIMIT 10' }],
+        dest: { type: 'data_stream', value: '.ai-index-ds-customer_support*' },
+        automations: [{ type: 'workflow', value: 'nightly-refresh' }],
+        sources: [{ type: 'esql', value: 'FROM .ai-index-ds-customer_support | LIMIT 10' }],
       },
     };
 
@@ -158,7 +157,7 @@ describe('ai indices routes', () => {
     it('returns 400 when the dest is invalid', async () => {
       aiIndexService.put.mockRejectedValue(
         new InvalidAiIndexDestError(
-          "dest.index 'customer_support*' does not match any existing index, index pattern, or data stream"
+          "dest.value 'customer_support*' does not match any existing index, index pattern, or data stream"
         )
       );
 
@@ -167,7 +166,7 @@ describe('ai indices routes', () => {
       expect(response.badRequest).toHaveBeenCalledWith({
         body: {
           message:
-            "dest.index 'customer_support*' does not match any existing index, index pattern, or data stream",
+            "dest.value 'customer_support*' does not match any existing index, index pattern, or data stream",
         },
       });
     });
@@ -188,10 +187,11 @@ describe('ai indices routes', () => {
       const aiIndex = {
         id: 'customer_support',
         name: 'customer_support',
-        type: 'data_stream' as const,
-        dest: { index: 'customer_support*' },
-        automations: ['nightly-refresh'],
-        sources: [{ type: 'esql' as const, value: 'FROM customer_support | LIMIT 10' }],
+        dest: { type: 'data_stream' as const, value: '.ai-index-ds-customer_support*' },
+        automations: [{ type: 'workflow' as const, value: 'nightly-refresh' }],
+        sources: [
+          { type: 'esql' as const, value: 'FROM .ai-index-ds-customer_support | LIMIT 10' },
+        ],
         date_created: '2026-07-08T12:10:30.000Z',
         date_modified: '2026-07-08T12:10:30.000Z',
       };
@@ -257,10 +257,9 @@ describe('ai indices routes', () => {
   describe('PUT body validation', () => {
     const validBody = {
       name: 'customer_support',
-      type: 'data_stream',
-      dest: { index: '.ai-index-customer_support' },
-      automations: ['nightly-refresh'],
-      sources: [{ type: 'esql', value: 'FROM .ai-index-customer_support | LIMIT 10' }],
+      dest: { type: 'data_stream', value: '.ai-index-ds-customer_support' },
+      automations: [{ type: 'workflow', value: 'nightly-refresh' }],
+      sources: [{ type: 'esql', value: 'FROM .ai-index-ds-customer_support | LIMIT 10' }],
     };
 
     const validateBody = (body: Record<string, unknown>) => {
@@ -279,15 +278,34 @@ describe('ai indices routes', () => {
       expect(() => validateBody({ ...validBody, automations: [], sources: [] })).not.toThrow();
     });
 
+    it('rejects a disallowed dest type', () => {
+      expect(() =>
+        validateBody({ ...validBody, dest: { type: 'view', value: '.ai-index-idx-foo' } })
+      ).toThrow();
+    });
+
     it('rejects a source with a disallowed type', () => {
       expect(() =>
         validateBody({ ...validBody, sources: [{ type: 'sql', value: 'SELECT 1' }] })
       ).toThrow();
     });
 
+    it('rejects an automation with a disallowed type', () => {
+      expect(() =>
+        validateBody({ ...validBody, automations: [{ type: 'cron', value: 'nightly-refresh' }] })
+      ).toThrow();
+    });
+
     it('accepts automations and sources of different lengths', () => {
       expect(() =>
-        validateBody({ ...validBody, automations: ['a', 'b'], sources: validBody.sources })
+        validateBody({
+          ...validBody,
+          automations: [
+            { type: 'workflow', value: 'a' },
+            { type: 'workflow', value: 'b' },
+          ],
+          sources: validBody.sources,
+        })
       ).not.toThrow();
     });
 

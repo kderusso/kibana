@@ -6,13 +6,14 @@
  */
 
 /**
- * The type of backing index an AI index is attached to. `index_pattern` covers
- * a concrete index name or an index pattern (e.g. `foo`, `foo,bar`, `foo*`).
+ * The type of backing store an AI index is attached to. `index` covers a
+ * concrete index name or an index pattern (e.g. `foo`, `foo,bar`, `foo*`).
  */
-export type AiIndexType = 'data_stream' | 'index_pattern';
+export type AiIndexType = 'data_stream' | 'index';
 
 export interface AiIndexDest {
-  index: string;
+  type: AiIndexType;
+  value: string;
 }
 
 export type AiIndexSourceType = 'esql';
@@ -22,12 +23,18 @@ export interface AiIndexSource {
   value: string;
 }
 
+export type AiIndexAutomationType = 'workflow';
+
+export interface AiIndexAutomation {
+  type: AiIndexAutomationType;
+  value: string;
+}
+
 export interface AiIndexProperties {
   name: string;
   description?: string;
-  type: AiIndexType;
   dest: AiIndexDest;
-  automations: string[];
+  automations: AiIndexAutomation[];
   sources: AiIndexSource[];
 }
 

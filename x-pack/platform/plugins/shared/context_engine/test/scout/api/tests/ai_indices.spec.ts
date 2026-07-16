@@ -12,7 +12,7 @@ import { apiTest, testData } from '../fixtures';
 
 const AI_INDEX_ID = 'scout_test_ai_index';
 const AI_INDEX_PATH = `api/context_engine/ai_index/${AI_INDEX_ID}`;
-const DEST_DATA_STREAM = '.ai-index-scout-test-dest';
+const DEST_DATA_STREAM = '.ai-index-ds-scout-test';
 const DEST_INDEX_TEMPLATE = 'scout-test-context-engine-template';
 const CONTEXT_ENGINE_ENABLED_SETTING = 'contextEngine:enabled';
 
@@ -24,9 +24,8 @@ const API_HEADERS = {
 const aiIndexBody = {
   name: 'scout_test_ai_index',
   description: 'AI index created by the Scout API test suite',
-  type: 'data_stream',
-  dest: { index: DEST_DATA_STREAM },
-  automations: ['scout-automation'],
+  dest: { type: 'data_stream', value: DEST_DATA_STREAM },
+  automations: [{ type: 'workflow', value: 'scout-automation' }],
   sources: [{ type: 'esql', value: `FROM ${DEST_DATA_STREAM} | LIMIT 1` }],
 };
 
@@ -119,26 +118,25 @@ apiTest.describe('context engine AI indices API', { tag: tags.stateful.classic }
     const response = await apiClient.put(AI_INDEX_PATH, {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
-      body: { ...aiIndexBody, dest: { index: 'does-not-exist-*' } },
+      body: { ...aiIndexBody, dest: { type: 'data_stream', value: 'does-not-exist-*' } },
     });
 
     expect(response).toHaveStatusCode(400);
   });
 
-  apiTest('creates and reads an index_pattern AI index', async ({ apiClient, esClient }) => {
-    const indexPatternAiIndexId = 'scout_test_index_pattern_ai_index';
-    const indexPatternPath = `api/context_engine/ai_index/${indexPatternAiIndexId}`;
-    const destIndex = '.ai-index-scout-test-index';
+  apiTest('creates and reads an index AI index', async ({ apiClient, esClient }) => {
+    const indexAiIndexId = 'scout_test_index_ai_index';
+    const indexPath = `api/context_engine/ai_index/${indexAiIndexId}`;
+    const destIndex = '.ai-index-idx-scout-test';
     await esClient.indices.create({ index: destIndex });
 
     try {
-      const createResponse = await apiClient.put(indexPatternPath, {
+      const createResponse = await apiClient.put(indexPath, {
         headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
         responseType: 'json',
         body: {
-          name: indexPatternAiIndexId,
-          type: 'index_pattern',
-          dest: { index: `${destIndex}*` },
+          name: indexAiIndexId,
+          dest: { type: 'index', value: `${destIndex}*` },
           automations: [],
           sources: [],
         },
@@ -146,18 +144,17 @@ apiTest.describe('context engine AI indices API', { tag: tags.stateful.classic }
       expect(createResponse).toHaveStatusCode(201);
       expect(createResponse.body).toStrictEqual({ status: 'created' });
 
-      const getResponse = await apiClient.get(indexPatternPath, {
+      const getResponse = await apiClient.get(indexPath, {
         headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
         responseType: 'json',
       });
       expect(getResponse).toHaveStatusCode(200);
       expect(getResponse.body).toMatchObject({
-        id: indexPatternAiIndexId,
-        type: 'index_pattern',
-        dest: { index: `${destIndex}*` },
+        id: indexAiIndexId,
+        dest: { type: 'index', value: `${destIndex}*` },
       });
     } finally {
-      await apiClient.delete(indexPatternPath, {
+      await apiClient.delete(indexPath, {
         headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
         responseType: 'json',
       });
@@ -165,25 +162,25 @@ apiTest.describe('context engine AI indices API', { tag: tags.stateful.classic }
     }
   });
 
-  apiTest('rejects a system index as an index_pattern dest', async ({ apiClient }) => {
+  apiTest('rejects a system index as an index dest', async ({ apiClient }) => {
     const response = await apiClient.put(AI_INDEX_PATH, {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
-      body: { ...aiIndexBody, type: 'index_pattern', dest: { index: '.kibana*' } },
+      body: { ...aiIndexBody, dest: { type: 'index', value: '.kibana*' } },
     });
 
     expect(response).toHaveStatusCode(400);
   });
 
   apiTest('rejects a dest that is not a data stream', async ({ apiClient, esClient }) => {
-    const plainIndex = '.ai-index-scout-test-plain-index';
+    const plainIndex = '.ai-index-ds-scout-test-plain';
     await esClient.indices.create({ index: plainIndex });
 
     try {
       const response = await apiClient.put(AI_INDEX_PATH, {
         headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
         responseType: 'json',
-        body: { ...aiIndexBody, dest: { index: plainIndex } },
+        body: { ...aiIndexBody, dest: { type: 'data_stream', value: plainIndex } },
       });
 
       expect(response).toHaveStatusCode(400);
@@ -192,13 +189,13 @@ apiTest.describe('context engine AI indices API', { tag: tags.stateful.classic }
     }
   });
 
-  apiTest('rejects a request without the required type field', async ({ apiClient }) => {
-    const { type, ...bodyWithoutType } = aiIndexBody;
+  apiTest('rejects a request without the required dest field', async ({ apiClient }) => {
+    const { dest, ...bodyWithoutDest } = aiIndexBody;
 
     const response = await apiClient.put(AI_INDEX_PATH, {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
-      body: bodyWithoutType,
+      body: bodyWithoutDest,
     });
 
     expect(response).toHaveStatusCode(400);

@@ -10,24 +10,26 @@ import type { ElasticsearchClient, Logger } from '@kbn/core/server';
 import { isResponseError } from '@kbn/es-errors';
 import { MAX_AI_INDICES } from '../../common/constants';
 import type {
+  AiIndexDest,
   AiIndexHttpItem,
   AiIndexProperties,
-  AiIndexType,
 } from '../../common/http_api/ai_indices';
 import { InvalidAiIndexDestError, AiIndexConflictError, AiIndexNotFoundError } from './errors';
 import type { AiIndexDocument, AiIndexStorageClient } from './storage';
 import { createAiIndexStorageClient } from './storage';
 
 /**
- * An AI index `dest.index` must follow the `.ai-index-` naming convention.
+ * Backing data streams and indices follow type-specific naming conventions,
+ * both sharing the common `.ai-index-` base.
  */
 const DEST_INDEX_PREFIX = '.ai-index-';
+const DATA_STREAM_PREFIX = `${DEST_INDEX_PREFIX}ds-`;
+const INDEX_PREFIX = `${DEST_INDEX_PREFIX}idx-`;
 
 const toAiIndexItem = (id: string, document: AiIndexDocument): AiIndexHttpItem => ({
   id,
   name: document.name,
   ...(document.description !== undefined && { description: document.description }),
-  type: document.type,
   dest: document.dest,
   automations: document.automations,
   sources: document.sources,
@@ -55,7 +57,7 @@ export class AiIndexService {
    * writer gets a {@link AiIndexConflictError}.
    */
   async put(aiIndexId: string, properties: AiIndexProperties): Promise<'created' | 'updated'> {
-    await this.assertValidDest(properties.dest.index, properties.type);
+    await this.assertValidDest(properties.dest);
 
     const existing = await this.findDocument(aiIndexId);
     const now = new Date().toISOString();
@@ -140,23 +142,24 @@ export class AiIndexService {
   }
 
   /**
-   * The dest index must exist and match the declared `type`. Only `system`
-   * indices are rejected (via the flag ES reports); `hidden` is allowed, since
-   * many legitimate customer indices are hidden.
+   * The dest value must exist and match the declared `type`, and follow the
+   * type-specific naming convention. Only `system` indices are rejected (via
+   * the flag ES reports); `hidden` is allowed, since many legitimate customer
+   * indices are hidden.
    */
-  private async assertValidDest(destIndex: string, type: AiIndexType): Promise<void> {
+  private async assertValidDest({ type, value }: AiIndexDest): Promise<void> {
     if (type === 'data_stream') {
-      await this.assertValidDataStreamDest(destIndex);
+      await this.assertValidDataStreamDest(value);
     } else {
-      await this.assertValidIndexPatternDest(destIndex);
+      await this.assertValidIndexDest(value);
     }
   }
 
-  private async assertValidDataStreamDest(destIndex: string): Promise<void> {
+  private async assertValidDataStreamDest(value: string): Promise<void> {
     let dataStreams: estypes.IndicesDataStream[] = [];
     try {
       const response = await this.esClient.indices.getDataStream({
-        name: destIndex,
+        name: value,
         expand_wildcards: 'all',
       });
       dataStreams = response.data_streams;
@@ -168,31 +171,31 @@ export class AiIndexService {
 
     if (dataStreams.length === 0) {
       throw new InvalidAiIndexDestError(
-        `dest.index '${destIndex}' must resolve to an existing data stream`
+        `dest.value '${value}' must resolve to an existing data stream`
       );
     }
 
     const invalidPrefix = dataStreams.find(
-      (dataStream) => !dataStream.name.startsWith(DEST_INDEX_PREFIX)
+      (dataStream) => !dataStream.name.startsWith(DATA_STREAM_PREFIX)
     );
     if (invalidPrefix) {
       throw new InvalidAiIndexDestError(
-        `dest.index '${destIndex}' is not allowed: '${invalidPrefix.name}' must start with '${DEST_INDEX_PREFIX}'`
+        `dest.value '${value}' is not allowed: '${invalidPrefix.name}' must start with '${DATA_STREAM_PREFIX}'`
       );
     }
 
     const system = dataStreams.find((dataStream) => dataStream.system);
     if (system) {
       throw new InvalidAiIndexDestError(
-        `dest.index '${destIndex}' is not allowed: '${system.name}' is a system data stream`
+        `dest.value '${value}' is not allowed: '${system.name}' is a system data stream`
       );
     }
   }
 
-  private async assertValidIndexPatternDest(destIndex: string): Promise<void> {
+  private async assertValidIndexDest(value: string): Promise<void> {
     let indices: estypes.IndicesResolveIndexResolveIndexItem[] = [];
     try {
-      const resolved = await this.esClient.indices.resolveIndex({ name: destIndex });
+      const resolved = await this.esClient.indices.resolveIndex({ name: value });
       indices = resolved.indices;
     } catch (error) {
       if (!(isResponseError(error) && error.statusCode === 404)) {
@@ -202,21 +205,21 @@ export class AiIndexService {
 
     if (indices.length === 0) {
       throw new InvalidAiIndexDestError(
-        `dest.index '${destIndex}' must match at least one existing index`
+        `dest.value '${value}' must match at least one existing index`
       );
     }
 
-    const invalidPrefix = indices.find((index) => !index.name.startsWith(DEST_INDEX_PREFIX));
+    const invalidPrefix = indices.find((index) => !index.name.startsWith(INDEX_PREFIX));
     if (invalidPrefix) {
       throw new InvalidAiIndexDestError(
-        `dest.index '${destIndex}' is not allowed: '${invalidPrefix.name}' must start with '${DEST_INDEX_PREFIX}'`
+        `dest.value '${value}' is not allowed: '${invalidPrefix.name}' must start with '${INDEX_PREFIX}'`
       );
     }
 
     const system = indices.find((index) => index.attributes.includes('system'));
     if (system) {
       throw new InvalidAiIndexDestError(
-        `dest.index '${destIndex}' is not allowed: '${system.name}' is a system index`
+        `dest.value '${value}' is not allowed: '${system.name}' is a system index`
       );
     }
   }

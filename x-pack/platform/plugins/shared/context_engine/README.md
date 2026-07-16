@@ -19,14 +19,15 @@ Notes:
 
 - The API is gated behind the `contextEngine:enabled` advanced setting
   (disabled by default). All routes return 404 while the setting is off.
-- The backing index is set via `dest`, an object of the form
-  `{ "index": "<index or pattern>" }`. `dest.index` must already exist when
-  creating or updating an AI index and must match the declared `type`:
-  `data_stream` for a data stream, or `index_pattern` for an index pattern (e.g.
-  `.ai-index-foo`, `.ai-index-foo*`). Every resolved index (or data stream) must
-  start with `.ai-index-`; system indices are not allowed.
-- `automations` is an array of keywords, and `sources` is an array of
-  `{ "type": "esql", "value": "<ES|QL query>" }` objects. Both are optional and
-  default to an empty array.
+- The backing store is set via `dest`, an object of the form
+  `{ "type": "data_stream" | "index", "value": "<data stream or index>" }`.
+  `dest.value` must already exist and match `dest.type`. Every resolved data
+  stream must start with `.ai-index-ds-`, and every resolved index with
+  `.ai-index-idx-` (e.g. `.ai-index-ds-foo`, `.ai-index-idx-foo*`); system
+  indices are not allowed.
+- `automations` is an array of `{ "type": "workflow", "value": "<name>" }`
+  objects, and `sources` is an array of
+  `{ "type": "esql", "value": "<ES|QL query>" }` objects. Both are required and
+  may be empty arrays.
 - Deleting an AI index deletes **only** the AI index entry. Backing indices
   are left untouched and must be removed with the Delete index API if desired.
