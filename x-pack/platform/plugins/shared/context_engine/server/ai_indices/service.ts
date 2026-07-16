@@ -102,7 +102,9 @@ export class AiIndexService {
       track_total_hits: false,
       sort: [{ name: 'asc' }],
     });
-    return response.hits.hits.map((hit) => toAiIndexItem(hit._id!, hit._source as AiIndexDocument));
+    return response.hits.hits.flatMap((hit) =>
+      hit._id ? [toAiIndexItem(hit._id, hit._source as AiIndexDocument)] : []
+    );
   }
 
   /**
@@ -124,7 +126,10 @@ export class AiIndexService {
     | undefined
   > {
     try {
-      const response = await this.storageClient.get({ id: aiIndexId });
+      // seq_no_primary_term is required for the OCC assertions in `put`: the
+      // storage client's get is search-based, and search hits only carry
+      // _seq_no/_primary_term when explicitly requested.
+      const response = await this.storageClient.get({ id: aiIndexId, seq_no_primary_term: true });
       if (!response.found || !response._source) {
         return undefined;
       }
@@ -155,7 +160,24 @@ export class AiIndexService {
     }
   }
 
+  /**
+   * Every expression in the dest value must start with the type-specific
+   * prefix. Checked before resolving against the cluster so that names of
+   * indices outside the allowed prefix are never echoed back to the caller
+   * (dest validation runs as the internal user).
+   */
+  private assertDestValueHasPrefix(value: string, prefix: string): void {
+    const invalid = value.split(',').find((expression) => !expression.startsWith(prefix));
+    if (invalid !== undefined) {
+      throw new InvalidAiIndexDestError(
+        `dest.value '${value}' is not allowed: every expression must start with '${prefix}'`
+      );
+    }
+  }
+
   private async assertValidDataStreamDest(value: string): Promise<void> {
+    this.assertDestValueHasPrefix(value, DATA_STREAM_PREFIX);
+
     let dataStreams: estypes.IndicesDataStream[] = [];
     try {
       const response = await this.esClient.indices.getDataStream({
@@ -193,6 +215,8 @@ export class AiIndexService {
   }
 
   private async assertValidIndexDest(value: string): Promise<void> {
+    this.assertDestValueHasPrefix(value, INDEX_PREFIX);
+
     let indices: estypes.IndicesResolveIndexResolveIndexItem[] = [];
     try {
       const resolved = await this.esClient.indices.resolveIndex({ name: value });

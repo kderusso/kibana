@@ -140,6 +140,12 @@ describe('AiIndexService', () => {
 
       await expect(service.put('customer_support', properties)).resolves.toBe('updated');
 
+      // The search-based get only returns _seq_no/_primary_term when asked.
+      expect(storageClient.get).toHaveBeenCalledWith({
+        id: 'customer_support',
+        seq_no_primary_term: true,
+      });
+
       const [indexArgs] = storageClient.index.mock.calls[0];
       expect(indexArgs.if_seq_no).toBe(7);
       expect(indexArgs.if_primary_term).toBe(2);
@@ -212,6 +218,17 @@ describe('AiIndexService', () => {
 
       await expect(service.put('customer_support', properties)).resolves.toBe('created');
       expect(storageClient.index).toHaveBeenCalled();
+    });
+
+    it('rejects a data_stream dest value not prefixed with .ai-index-ds- without resolving it', async () => {
+      await expect(
+        service.put('customer_support', {
+          ...properties,
+          dest: { type: 'data_stream', value: 'customer_support*' },
+        })
+      ).rejects.toBeInstanceOf(InvalidAiIndexDestError);
+      expect(esClient.indices.getDataStream).not.toHaveBeenCalled();
+      expect(storageClient.index).not.toHaveBeenCalled();
     });
 
     it('rejects a data_stream dest not prefixed with .ai-index-ds-', async () => {
@@ -291,6 +308,28 @@ describe('AiIndexService', () => {
           dest: { type: 'index', value: '.ai-index-idx-logs-*,.ai-index-idx-kibana*' },
         })
       ).rejects.toBeInstanceOf(InvalidAiIndexDestError);
+      expect(storageClient.index).not.toHaveBeenCalled();
+    });
+
+    it('rejects an index dest value not prefixed with .ai-index-idx- without resolving it', async () => {
+      await expect(
+        service.put('logs', {
+          ...indexProperties,
+          dest: { type: 'index', value: '.kibana*' },
+        })
+      ).rejects.toBeInstanceOf(InvalidAiIndexDestError);
+      expect(esClient.indices.resolveIndex).not.toHaveBeenCalled();
+      expect(storageClient.index).not.toHaveBeenCalled();
+    });
+
+    it('rejects a mixed expression when one expression lacks the prefix', async () => {
+      await expect(
+        service.put('logs', {
+          ...indexProperties,
+          dest: { type: 'index', value: '.ai-index-idx-logs-*,.kibana*' },
+        })
+      ).rejects.toBeInstanceOf(InvalidAiIndexDestError);
+      expect(esClient.indices.resolveIndex).not.toHaveBeenCalled();
       expect(storageClient.index).not.toHaveBeenCalled();
     });
 
