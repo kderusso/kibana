@@ -285,10 +285,10 @@ describe('ai indices routes', () => {
       ).toThrow();
     });
 
-    it('rejects automations and sources of different lengths', () => {
+    it('accepts automations and sources of different lengths', () => {
       expect(() =>
         validateBody({ ...validBody, automations: ['a', 'b'], sources: validBody.sources })
-      ).toThrow('automations and sources must have the same number of elements');
+      ).not.toThrow();
     });
 
     it('rejects a missing automations array', () => {
