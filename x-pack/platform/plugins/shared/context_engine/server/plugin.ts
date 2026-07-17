@@ -16,7 +16,6 @@ import type {
 import { registerFeatures } from './features';
 import { registerAiIndexRoutes } from './routes/ai_indices';
 import { AiIndexService } from './ai_indices/service';
-import { installAiIndexTemplates } from './ai_indices/templates';
 
 export class ContextEnginePlugin
   implements
@@ -55,14 +54,10 @@ export class ContextEnginePlugin
   }
 
   start(coreStart: CoreStart): ContextEnginePluginStart {
-    const esClient = coreStart.elasticsearch.client.asInternalUser;
-    const aiIndexLogger = this.logger.get('ai_indices');
-
-    this.aiIndexService = new AiIndexService({ esClient, logger: aiIndexLogger });
-
-    installAiIndexTemplates({ esClient, logger: aiIndexLogger }).catch((error) =>
-      aiIndexLogger.error(`Failed to install KI index defaults: ${error.message}`)
-    );
+    this.aiIndexService = new AiIndexService({
+      esClient: coreStart.elasticsearch.client.asInternalUser,
+      logger: this.logger.get('ai_indices'),
+    });
 
     return {};
   }

@@ -27,7 +27,6 @@ dependsOn:
   - '@kbn/storage-adapter'
   - '@kbn/es-errors'
   - '@kbn/management-settings-ids'
-  - '@kbn/core-elasticsearch-server-utils'
 tags:
   - plugin
   - prod

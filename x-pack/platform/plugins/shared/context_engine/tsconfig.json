@@ -15,7 +15,6 @@
     "@kbn/features-plugin",
     "@kbn/storage-adapter",
     "@kbn/es-errors",
-    "@kbn/management-settings-ids",
-    "@kbn/core-elasticsearch-server-utils"
+    "@kbn/management-settings-ids"
   ]
 }
