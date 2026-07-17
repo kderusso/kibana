@@ -292,7 +292,24 @@ describe('AiIndexService', () => {
       // Hidden indices only resolve when expand_wildcards includes them.
       expect(esClient.indices.resolveIndex).toHaveBeenCalledWith({
         name: indexProperties.dest.value,
-        expand_wildcards: ['open', 'hidden'],
+        expand_wildcards: ['open', 'hidden', 'closed'],
+      });
+      expect(storageClient.index).toHaveBeenCalled();
+    });
+
+    it('allows a closed hidden but non-system index dest', async () => {
+      esClient.indices.resolveIndex.mockResponse({
+        indices: [{ name: '.ai-index-idx-sml-data', attributes: ['closed', 'hidden'] }],
+        aliases: [],
+        data_streams: [],
+      });
+      storageClient.get.mockRejectedValue(createNotFoundError());
+
+      await expect(service.put('logs', indexProperties)).resolves.toBe('created');
+      // Closed indices only resolve when expand_wildcards includes 'closed'.
+      expect(esClient.indices.resolveIndex).toHaveBeenCalledWith({
+        name: indexProperties.dest.value,
+        expand_wildcards: ['open', 'hidden', 'closed'],
       });
       expect(storageClient.index).toHaveBeenCalled();
     });
