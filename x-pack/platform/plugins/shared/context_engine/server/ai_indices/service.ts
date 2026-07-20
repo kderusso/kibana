@@ -147,10 +147,8 @@ export class AiIndexService {
   }
 
   /**
-   * The dest value must exist and match the declared `type`, and follow the
-   * type-specific naming convention. Only `system` indices are rejected (via
-   * the flag ES reports); `hidden` is allowed, since many legitimate customer
-   * indices are hidden.
+   * The dest value must follow the type-specific naming convention and match
+   * the declared `type`.
    */
   private async assertValidDest({ type, value }: AiIndexDest): Promise<void> {
     if (type === 'data_stream') {
@@ -162,9 +160,7 @@ export class AiIndexService {
 
   /**
    * Every expression in the dest value must start with the type-specific
-   * prefix. Checked before resolving against the cluster so that names of
-   * indices outside the allowed prefix are never echoed back to the caller
-   * (dest validation runs as the internal user).
+   * prefix.
    */
   private assertDestValueHasPrefix(value: string, prefix: string): void {
     const invalid = value.split(',').find((expression) => !expression.startsWith(prefix));
@@ -189,12 +185,6 @@ export class AiIndexService {
       if (!(isResponseError(error) && error.statusCode === 404)) {
         throw error;
       }
-    }
-
-    if (dataStreams.length === 0) {
-      throw new InvalidAiIndexDestError(
-        `dest.value '${value}' must resolve to an existing data stream`
-      );
     }
 
     const invalidPrefix = dataStreams.find(
@@ -228,12 +218,6 @@ export class AiIndexService {
       if (!(isResponseError(error) && error.statusCode === 404)) {
         throw error;
       }
-    }
-
-    if (indices.length === 0) {
-      throw new InvalidAiIndexDestError(
-        `dest.value '${value}' must match at least one existing index`
-      );
     }
 
     const invalidPrefix = indices.find((index) => !index.name.startsWith(INDEX_PREFIX));

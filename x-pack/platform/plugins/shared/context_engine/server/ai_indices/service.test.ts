@@ -178,25 +178,25 @@ describe('AiIndexService', () => {
       );
     });
 
-    it('rejects a data_stream dest that does not resolve to a data stream', async () => {
+    it('allows a data_stream dest that does not resolve to a data stream yet (lazy creation)', async () => {
       esClient.indices.getDataStream.mockResponse({ data_streams: [] });
+      storageClient.get.mockRejectedValue(createNotFoundError());
 
-      await expect(service.put('customer_support', properties)).rejects.toBeInstanceOf(
-        InvalidAiIndexDestError
-      );
-      expect(storageClient.index).not.toHaveBeenCalled();
+      await expect(service.put('customer_support', properties)).resolves.toBe('created');
+      expect(storageClient.index).toHaveBeenCalled();
     });
 
-    it('rejects a data_stream dest that does not exist (404 from get data stream)', async () => {
+    it('allows a data_stream dest that does not exist (404 from get data stream)', async () => {
       esClient.indices.getDataStream.mockRejectedValue(createNotFoundError());
+      storageClient.get.mockRejectedValue(createNotFoundError());
 
       await expect(
         service.put('customer_support', {
           ...properties,
           dest: { type: 'data_stream', value: '.ai-index-ds-customer_support' },
         })
-      ).rejects.toBeInstanceOf(InvalidAiIndexDestError);
-      expect(storageClient.index).not.toHaveBeenCalled();
+      ).resolves.toBe('created');
+      expect(storageClient.index).toHaveBeenCalled();
     });
 
     it('rejects a system data stream dest', async () => {
@@ -254,17 +254,16 @@ describe('AiIndexService', () => {
       expect(storageClient.index).toHaveBeenCalled();
     });
 
-    it('rejects an index dest that matches no index', async () => {
+    it('allows an index dest that matches no index yet (lazy creation)', async () => {
       esClient.indices.resolveIndex.mockResponse({
         indices: [],
         aliases: [],
         data_streams: [{ name: 'logs', backing_indices: [], timestamp_field: '@t' }],
       });
+      storageClient.get.mockRejectedValue(createNotFoundError());
 
-      await expect(service.put('logs', indexProperties)).rejects.toBeInstanceOf(
-        InvalidAiIndexDestError
-      );
-      expect(storageClient.index).not.toHaveBeenCalled();
+      await expect(service.put('logs', indexProperties)).resolves.toBe('created');
+      expect(storageClient.index).toHaveBeenCalled();
     });
 
     it('rejects a system index dest', async () => {

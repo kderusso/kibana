@@ -153,15 +153,30 @@ apiTest.describe('context engine AI indices API', { tag: tags.stateful.classic }
     });
   });
 
-  apiTest('rejects an AI index whose dest does not exist', async ({ apiClient }) => {
-    const response = await apiClient.put(AI_INDEX_PATH, {
-      headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
-      responseType: 'json',
-      body: { ...aiIndexBody, dest: { type: 'data_stream', value: 'does-not-exist-*' } },
-    });
+  apiTest(
+    'creates an AI index whose dest does not exist yet (lazy creation)',
+    async ({ apiClient }) => {
+      const lazyPath = `api/context_engine/ai_index/${AI_INDEX_ID}_lazy`;
+      try {
+        const response = await apiClient.put(lazyPath, {
+          headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
+          responseType: 'json',
+          body: {
+            ...aiIndexBody,
+            dest: { type: 'data_stream', value: '.ai-index-ds-does-not-exist*' },
+          },
+        });
 
-    expect(response).toHaveStatusCode(400);
-  });
+        expect(response).toHaveStatusCode(201);
+        expect(response.body).toStrictEqual({ status: 'created' });
+      } finally {
+        await apiClient.delete(lazyPath, {
+          headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
+          responseType: 'json',
+        });
+      }
+    }
+  );
 
   apiTest('creates and reads an index AI index', async ({ apiClient }) => {
     const createResponse = await apiClient.put(INDEX_AI_INDEX_PATH, {
