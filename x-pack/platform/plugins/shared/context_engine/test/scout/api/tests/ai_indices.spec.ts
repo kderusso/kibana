@@ -14,6 +14,8 @@ const AI_INDEX_ID = 'scout_test_ai_index';
 const AI_INDEX_PATH = `api/context_engine/ai_index/${AI_INDEX_ID}`;
 const INDEX_AI_INDEX_ID = 'scout_test_index_ai_index';
 const INDEX_AI_INDEX_PATH = `api/context_engine/ai_index/${INDEX_AI_INDEX_ID}`;
+const LAZY_AI_INDEX_ID = `${AI_INDEX_ID}_lazy`;
+const LAZY_AI_INDEX_PATH = `api/context_engine/ai_index/${LAZY_AI_INDEX_ID}`;
 const DEST_DATA_STREAM = '.ai-index-ds-scout-test';
 const DEST_INDEX = '.ai-index-idx-scout-test';
 // Must not match the data stream template pattern (`${DEST_DATA_STREAM}*`),
@@ -61,6 +63,10 @@ apiTest.describe('context engine AI indices API', { tag: tags.stateful.classic }
       responseType: 'json',
     });
     await apiClient.delete(INDEX_AI_INDEX_PATH, {
+      headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
+      responseType: 'json',
+    });
+    await apiClient.delete(LAZY_AI_INDEX_PATH, {
       headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
       responseType: 'json',
     });
@@ -156,25 +162,17 @@ apiTest.describe('context engine AI indices API', { tag: tags.stateful.classic }
   apiTest(
     'creates an AI index whose dest does not exist yet (lazy creation)',
     async ({ apiClient }) => {
-      const lazyPath = `api/context_engine/ai_index/${AI_INDEX_ID}_lazy`;
-      try {
-        const response = await apiClient.put(lazyPath, {
-          headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
-          responseType: 'json',
-          body: {
-            ...aiIndexBody,
-            dest: { type: 'data_stream', value: '.ai-index-ds-does-not-exist*' },
-          },
-        });
+      const response = await apiClient.put(LAZY_AI_INDEX_PATH, {
+        headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
+        responseType: 'json',
+        body: {
+          ...aiIndexBody,
+          dest: { type: 'data_stream', value: '.ai-index-ds-does-not-exist*' },
+        },
+      });
 
-        expect(response).toHaveStatusCode(201);
-        expect(response.body).toStrictEqual({ status: 'created' });
-      } finally {
-        await apiClient.delete(lazyPath, {
-          headers: { ...adminApiCredentials.apiKeyHeader, ...API_HEADERS },
-          responseType: 'json',
-        });
-      }
+      expect(response).toHaveStatusCode(201);
+      expect(response.body).toStrictEqual({ status: 'created' });
     }
   );
 
