@@ -75,7 +75,7 @@ describe('AiIndexService', () => {
         {
           name: '.ai-index-ds-customer_support',
           backing_indices: [],
-          timestamp_field: { name: '@timestamp' },
+          timestamp_field: '@timestamp',
         },
       ],
     });
@@ -217,7 +217,7 @@ describe('AiIndexService', () => {
           {
             name: '.ai-index-idx-customer_support',
             backing_indices: [],
-            timestamp_field: { name: '@timestamp' },
+            timestamp_field: '@timestamp',
           },
         ],
       });
@@ -249,12 +249,27 @@ describe('AiIndexService', () => {
       esClient.indices.resolveIndex.mockResponse({
         indices: [],
         aliases: [],
-        data_streams: [{ name: 'logs', backing_indices: [], timestamp_field: '@t' }],
+        data_streams: [],
       });
       storageClient.get.mockRejectedValue(createNotFoundError());
 
       await expect(service.put('logs', indexProperties)).resolves.toBe('created');
       expect(storageClient.index).toHaveBeenCalled();
+    });
+
+    it('rejects an index dest when a data stream exists at that name', async () => {
+      esClient.indices.resolveIndex.mockResponse({
+        indices: [],
+        aliases: [],
+        data_streams: [
+          { name: '.ai-index-idx-logs', backing_indices: [], timestamp_field: '@timestamp' },
+        ],
+      });
+
+      await expect(service.put('logs', indexProperties)).rejects.toBeInstanceOf(
+        InvalidAiIndexDestError
+      );
+      expect(storageClient.index).not.toHaveBeenCalled();
     });
 
     it('rejects a system index dest', async () => {

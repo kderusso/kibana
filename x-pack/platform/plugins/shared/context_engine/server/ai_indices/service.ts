@@ -207,16 +207,24 @@ export class AiIndexService {
     this.assertDestValueHasPrefix(value, INDEX_PREFIX);
 
     let indices: estypes.IndicesResolveIndexResolveIndexItem[] = [];
+    let dataStreams: estypes.IndicesResolveIndexResolveIndexDataStreamsItem[] = [];
     try {
       const resolved = await this.esClient.indices.resolveIndex({
         name: value,
         expand_wildcards: ['open', 'hidden', 'closed'],
       });
       indices = resolved.indices;
+      dataStreams = resolved.data_streams;
     } catch (error) {
       if (!(isResponseError(error) && error.statusCode === 404)) {
         throw error;
       }
+    }
+
+    if (dataStreams.length > 0) {
+      throw new InvalidAiIndexDestError(
+        `dest.value '${value}' is not allowed: '${dataStreams[0].name}' is not an index`
+      );
     }
 
     const invalidPrefix = indices.find((index) => !index.name.startsWith(INDEX_PREFIX));
