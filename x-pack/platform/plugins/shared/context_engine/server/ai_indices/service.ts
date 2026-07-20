@@ -17,14 +17,10 @@ import type {
 import { InvalidAiIndexDestError, AiIndexConflictError, AiIndexNotFoundError } from './errors';
 import type { AiIndexDocument, AiIndexStorageClient } from './storage';
 import { createAiIndexStorageClient } from './storage';
-
-/**
- * Backing data streams and indices follow type-specific naming conventions,
- * both sharing the common `.ai-index-` base.
- */
-const DEST_INDEX_PREFIX = '.ai-index-';
-const DATA_STREAM_PREFIX = `${DEST_INDEX_PREFIX}ds-`;
-const INDEX_PREFIX = `${DEST_INDEX_PREFIX}idx-`;
+import {
+  AI_INDEX_DS_PREFIX as DATA_STREAM_PREFIX,
+  AI_INDEX_IDX_PREFIX as INDEX_PREFIX,
+} from './constants';
 
 const toAiIndexItem = (id: string, document: AiIndexDocument): AiIndexHttpItem => ({
   id,
