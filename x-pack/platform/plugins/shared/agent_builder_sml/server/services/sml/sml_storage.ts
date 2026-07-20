@@ -8,9 +8,10 @@
 import type { Logger, ElasticsearchClient } from '@kbn/core/server';
 import type { IndexStorageSettings } from '@kbn/storage-adapter';
 import { StorageIndexAdapter, types } from '@kbn/storage-adapter';
+import { AI_INDEX_IDX_PREFIX } from '@kbn/context-engine-plugin/server';
 import type { SmlDocument } from './types';
 
-export const smlIndexName = '.ai-index-idx-sml-data';
+export const smlIndexName = `${AI_INDEX_IDX_PREFIX}sml-data`;
 
 const SEMANTIC_MULTI_FIELD = {
   semantic: types.semantic_text({}),

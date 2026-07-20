@@ -8,7 +8,7 @@
     "id": "agentBuilderSml",
     "server": true,
     "browser": true,
-    "requiredPlugins": ["features", "taskManager"],
+    "requiredPlugins": ["contextEngine", "features", "taskManager"],
     "optionalPlugins": ["security", "spaces"]
   }
 }

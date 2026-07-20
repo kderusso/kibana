@@ -14,6 +14,7 @@ import type {
 } from './types';
 
 export type { ContextEnginePluginSetup, ContextEnginePluginStart } from './types';
+export { AI_INDEX_IDX_PREFIX, AI_INDEX_DS_PREFIX } from './ai_indices/constants';
 
 export const plugin: PluginInitializer<
   ContextEnginePluginSetup,
