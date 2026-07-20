@@ -174,32 +174,31 @@ export class AiIndexService {
   private async assertValidDataStreamDest(value: string): Promise<void> {
     this.assertDestValueHasPrefix(value, DATA_STREAM_PREFIX);
 
-    let dataStreams: estypes.IndicesDataStream[] = [];
+    let indices: estypes.IndicesResolveIndexResolveIndexItem[] = [];
+    let dataStreams: estypes.IndicesResolveIndexResolveIndexDataStreamsItem[] = [];
     try {
-      const response = await this.esClient.indices.getDataStream({
+      const resolved = await this.esClient.indices.resolveIndex({
         name: value,
-        expand_wildcards: 'all',
+        expand_wildcards: ['open', 'hidden', 'closed'],
       });
-      dataStreams = response.data_streams;
+      indices = resolved.indices;
+      dataStreams = resolved.data_streams;
     } catch (error) {
       if (!(isResponseError(error) && error.statusCode === 404)) {
         throw error;
       }
     }
 
-    const invalidPrefix = dataStreams.find(
-      (dataStream) => !dataStream.name.startsWith(DATA_STREAM_PREFIX)
-    );
-    if (invalidPrefix) {
+    if (indices.length > 0) {
       throw new InvalidAiIndexDestError(
-        `dest.value '${value}' is not allowed: '${invalidPrefix.name}' must start with '${DATA_STREAM_PREFIX}'`
+        `dest.value '${value}' is not allowed: '${indices[0].name}' is not a data stream`
       );
     }
 
-    const system = dataStreams.find((dataStream) => dataStream.system);
-    if (system) {
+    const invalidPrefix = dataStreams.find((ds) => !ds.name.startsWith(DATA_STREAM_PREFIX));
+    if (invalidPrefix) {
       throw new InvalidAiIndexDestError(
-        `dest.value '${value}' is not allowed: '${system.name}' is a system data stream`
+        `dest.value '${value}' is not allowed: '${invalidPrefix.name}' must start with '${DATA_STREAM_PREFIX}'`
       );
     }
   }
