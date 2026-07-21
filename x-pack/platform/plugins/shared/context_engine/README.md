@@ -28,7 +28,7 @@ Notes:
 - `automations` is an array of `{ "type": "workflow", "value": "<name>" }`
   objects, and `sources` is an array of
   `{ "type": "esql", "value": "<ES|QL query>" }` or
-  `{ "type": "esql_view", "value": "<view name>" }` objects. Both are required
+  `{ "type": "esql_view", "value": "<ES|QL view name>" }` objects. Both are required
   and may be empty arrays.
 - Deleting an AI index deletes **only** the AI index entry. Backing indices
   are left untouched and must be removed with the Delete index API if desired.
