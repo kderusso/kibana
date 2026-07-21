@@ -16,7 +16,7 @@ export interface AiIndexDest {
   value: string;
 }
 
-export type AiIndexSourceType = 'esql';
+export type AiIndexSourceType = 'esql' | 'esql_view';
 
 export interface AiIndexSource {
   type: AiIndexSourceType;

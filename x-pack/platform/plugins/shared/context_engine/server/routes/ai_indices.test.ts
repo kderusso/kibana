@@ -286,6 +286,15 @@ describe('ai indices routes', () => {
       ).not.toThrow();
     });
 
+    it('accepts an esql_view source', () => {
+      expect(() =>
+        validateBody({
+          ...validBody,
+          sources: [{ type: 'esql_view', value: 'customer_support_view' }],
+        })
+      ).not.toThrow();
+    });
+
     it('rejects a disallowed dest type', () => {
       expect(() =>
         validateBody({ ...validBody, dest: { type: 'view', value: 'ai-index-idx-foo' } })
