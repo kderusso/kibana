@@ -95,22 +95,26 @@ const putAiIndexBodySchema = schema.object({
     }
   ),
   sources: schema.arrayOf(
-    schema.object({
-      type: schema.oneOf([schema.literal('esql'), schema.literal('esql_view')], {
-        meta: {
-          description:
-            'The source type. `esql` for an ES|QL query, or `esql_view` for a view name.',
-        },
+    schema.oneOf([
+      schema.object({
+        type: schema.literal('esql'),
+        value: schema.string({
+          minLength: 0,
+          maxLength: MAX_AI_INDEX_SOURCE_VALUE_LENGTH,
+          meta: { description: 'An ES|QL query.' },
+        }),
       }),
-      value: schema.string({
-        minLength: 0,
-        maxLength: MAX_AI_INDEX_SOURCE_VALUE_LENGTH,
-        meta: {
-          description:
-            'The source value; an ES|QL query when `type` is `esql`, or a view name when `type` is `esql_view`.',
-        },
+      schema.object({
+        type: schema.literal('esql_view'),
+        value: schema.string({
+          minLength: 1,
+          maxLength: MAX_AI_INDEX_SOURCE_VALUE_LENGTH,
+          validate: (value) =>
+            /^[a-zA-Z0-9_\-.]+$/.test(value) ? undefined : 'must be a valid ES|QL view name',
+          meta: { description: 'An ES|QL view name.' },
+        }),
       }),
-    }),
+    ]),
     {
       maxSize: MAX_AI_INDEX_SOURCES,
       meta: { description: 'Additional sources that provide context for the AI index.' },

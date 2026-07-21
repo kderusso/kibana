@@ -295,6 +295,18 @@ describe('ai indices routes', () => {
       ).not.toThrow();
     });
 
+    it('rejects an esql_view source with an empty value', () => {
+      expect(() =>
+        validateBody({ ...validBody, sources: [{ type: 'esql_view', value: '' }] })
+      ).toThrow();
+    });
+
+    it('rejects an esql_view source with an invalid view name', () => {
+      expect(() =>
+        validateBody({ ...validBody, sources: [{ type: 'esql_view', value: 'bad name!' }] })
+      ).toThrow();
+    });
+
     it('rejects a disallowed dest type', () => {
       expect(() =>
         validateBody({ ...validBody, dest: { type: 'view', value: 'ai-index-idx-foo' } })
