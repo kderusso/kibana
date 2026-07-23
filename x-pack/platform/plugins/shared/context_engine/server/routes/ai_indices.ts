@@ -16,7 +16,6 @@ import {
   MAX_AI_INDEX_DESCRIPTION_LENGTH,
   MAX_AI_INDEX_DEST_VALUE_LENGTH,
   MAX_AI_INDEX_ID_LENGTH,
-  MAX_AI_INDEX_NAME_LENGTH,
   MAX_AI_INDEX_SOURCE_VALUE_LENGTH,
   MAX_AI_INDEX_SOURCES,
   MAX_AI_INDICES,
@@ -45,23 +44,22 @@ const WRITE_SECURITY: RouteSecurity = {
   authz: { requiredPrivileges: [apiPrivileges.writeContextEngine] },
 };
 
+// Lowercase letters, numbers, hyphens, and underscores only.
+const AI_INDEX_ID_PATTERN = /^[a-z0-9_-]+$/;
+
 const aiIndexIdParamsSchema = schema.object({
   aiIndexId: schema.string({
     minLength: 1,
     maxLength: MAX_AI_INDEX_ID_LENGTH,
+    validate: (value) =>
+      AI_INDEX_ID_PATTERN.test(value)
+        ? undefined
+        : 'must contain only lowercase letters, numbers, hyphens (-), and underscores (_)',
     meta: { description: 'The unique identifier of the AI index.' },
   }),
 });
 
 const putAiIndexBodySchema = schema.object({
-  name: schema.string({
-    minLength: 1,
-    maxLength: MAX_AI_INDEX_NAME_LENGTH,
-    meta: {
-      description:
-        'Display name for the AI index. Separate from the id so it can be renamed if necessary.',
-    },
-  }),
   description: schema.maybe(
     schema.string({
       maxLength: MAX_AI_INDEX_DESCRIPTION_LENGTH,

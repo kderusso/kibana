@@ -51,7 +51,6 @@ const createConflictError = () =>
   });
 
 const aiIndexDocument: AiIndexDocument = {
-  name: 'customer_support',
   description: 'KIs representing previously answered, commonly asked questions',
   dest: { type: 'data_stream', value: 'ai-index-ds-customer_support*' },
   automations: [{ type: 'workflow', value: 'nightly-refresh' }],
@@ -96,7 +95,6 @@ describe('AiIndexService', () => {
 
   describe('put', () => {
     const properties = {
-      name: 'customer_support',
       description: 'KIs representing previously answered, commonly asked questions',
       dest: { type: 'data_stream' as const, value: 'ai-index-ds-customer_support*' },
       automations: [{ type: 'workflow' as const, value: 'nightly-refresh' }],
@@ -424,7 +422,7 @@ describe('AiIndexService', () => {
       ]);
 
       expect(storageClient.search).toHaveBeenCalledWith(
-        expect.objectContaining({ size: 100, sort: [{ name: 'asc' }] })
+        expect.objectContaining({ size: 100, sort: [{ date_created: 'asc' }] })
       );
     });
   });

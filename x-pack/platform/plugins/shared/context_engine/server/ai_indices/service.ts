@@ -28,7 +28,6 @@ const INDEX_PREFIX = `${DEST_INDEX_PREFIX}idx-`;
 
 const toAiIndexItem = (id: string, document: AiIndexDocument): AiIndexHttpItem => ({
   id,
-  name: document.name,
   ...(document.description !== undefined && { description: document.description }),
   dest: document.dest,
   automations: document.automations,
@@ -100,7 +99,7 @@ export class AiIndexService {
     const response = await this.storageClient.search({
       size: MAX_AI_INDICES,
       track_total_hits: false,
-      sort: [{ name: 'asc' }],
+      sort: [{ date_created: 'asc' }],
     });
     return response.hits.hits.flatMap((hit) =>
       hit._id ? [toAiIndexItem(hit._id, hit._source as AiIndexDocument)] : []
