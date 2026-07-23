@@ -422,7 +422,7 @@ describe('AiIndexService', () => {
       ]);
 
       expect(storageClient.search).toHaveBeenCalledWith(
-        expect.objectContaining({ size: 100, sort: [{ date_created: 'asc' }] })
+        expect.objectContaining({ size: 100, sort: [{ _id: 'asc' }] })
       );
     });
   });

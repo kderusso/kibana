@@ -29,6 +29,7 @@ import type {
   PutAiIndexResponse,
 } from '../../common/http_api/ai_indices';
 import { apiPrivileges } from '../../common/features';
+import { validateAiIndexId } from '../../common/validation';
 import {
   InvalidAiIndexDestError,
   AiIndexConflictError,
@@ -44,17 +45,11 @@ const WRITE_SECURITY: RouteSecurity = {
   authz: { requiredPrivileges: [apiPrivileges.writeContextEngine] },
 };
 
-// Lowercase letters, numbers, hyphens, and underscores only.
-const AI_INDEX_ID_PATTERN = /^[a-z0-9_-]+$/;
-
 const aiIndexIdParamsSchema = schema.object({
   aiIndexId: schema.string({
     minLength: 1,
     maxLength: MAX_AI_INDEX_ID_LENGTH,
-    validate: (value) =>
-      AI_INDEX_ID_PATTERN.test(value)
-        ? undefined
-        : 'must contain only lowercase letters, numbers, hyphens (-), and underscores (_)',
+    validate: validateAiIndexId,
     meta: { description: 'The unique identifier of the AI index.' },
   }),
 });

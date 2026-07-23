@@ -99,7 +99,7 @@ export class AiIndexService {
     const response = await this.storageClient.search({
       size: MAX_AI_INDICES,
       track_total_hits: false,
-      sort: [{ date_created: 'asc' }],
+      sort: [{ _id: 'asc' }],
     });
     return response.hits.hits.flatMap((hit) =>
       hit._id ? [toAiIndexItem(hit._id, hit._source as AiIndexDocument)] : []
