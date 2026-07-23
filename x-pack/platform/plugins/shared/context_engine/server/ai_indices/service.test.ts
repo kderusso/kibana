@@ -401,7 +401,7 @@ describe('AiIndexService', () => {
   });
 
   describe('list', () => {
-    it('returns AI indices mapped from search hits', async () => {
+    it('returns AI indices mapped from search hits, sorted by id', async () => {
       storageClient.search.mockResolvedValue({
         took: 1,
         timed_out: false,
@@ -413,17 +413,17 @@ describe('AiIndexService', () => {
               _index: '.contextengine-ai-indices',
               _source: aiIndexDocument,
             },
+            { _id: 'billing', _index: '.contextengine-ai-indices', _source: aiIndexDocument },
           ],
         },
       } as unknown as Awaited<ReturnType<AiIndexStorageClient['search']>>);
 
       await expect(service.list()).resolves.toEqual([
+        { id: 'billing', ...aiIndexDocument },
         { id: 'customer_support', ...aiIndexDocument },
       ]);
 
-      expect(storageClient.search).toHaveBeenCalledWith(
-        expect.objectContaining({ size: 100, sort: [{ _id: 'asc' }] })
-      );
+      expect(storageClient.search).toHaveBeenCalledWith(expect.objectContaining({ size: 100 }));
     });
   });
 

@@ -99,11 +99,12 @@ export class AiIndexService {
     const response = await this.storageClient.search({
       size: MAX_AI_INDICES,
       track_total_hits: false,
-      sort: [{ _id: 'asc' }],
     });
-    return response.hits.hits.flatMap((hit) =>
-      hit._id ? [toAiIndexItem(hit._id, hit._source as AiIndexDocument)] : []
-    );
+    // Sorted by id in memory: Elasticsearch disallows sorting on `_id`, and the
+    // result set is bounded by MAX_AI_INDICES.
+    return response.hits.hits
+      .flatMap((hit) => (hit._id ? [toAiIndexItem(hit._id, hit._source as AiIndexDocument)] : []))
+      .sort((a, b) => a.id.localeCompare(b.id));
   }
 
   /**
