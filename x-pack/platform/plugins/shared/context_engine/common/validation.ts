@@ -5,18 +5,11 @@
  * 2.0.
  */
 
-/**
- * Allowed characters for an AI index id: lowercase letters, numbers, hyphens,
- * and underscores only.
- */
-export const AI_INDEX_ID_PATTERN = /^[a-z0-9_-]+$/;
+// Starts with a lowercase letter or number, then lowercase letters, numbers, hyphens, or underscores.
+export const AI_INDEX_ID_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
 
-/**
- * Validates an AI index id. Returns an error message when invalid, or
- * `undefined` when valid. Shaped for `@kbn/config-schema`'s `validate` option
- * and reusable by browser-side form validation.
- */
+/** Returns an error message for an invalid AI index id, or `undefined` when valid. */
 export const validateAiIndexId = (value: string): string | undefined =>
   AI_INDEX_ID_PATTERN.test(value)
     ? undefined
-    : 'must contain only lowercase letters, numbers, hyphens (-), and underscores (_)';
+    : 'must start with a lowercase letter or number, then lowercase letters, numbers, hyphens, or underscores';

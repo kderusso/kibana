@@ -352,12 +352,18 @@ describe('ai indices routes', () => {
       }
     );
 
-    it.each(['Customer_Support', 'has space', 'has.dot', 'emoji😀', 'slash/id', 'tilde~'])(
-      'rejects an id with disallowed characters %p',
-      (aiIndexId) => {
-        expect(() => validateParams({ aiIndexId })).toThrow(/lowercase letters, numbers, hyphens/);
-      }
-    );
+    it.each([
+      'Customer_Support',
+      'has space',
+      'has.dot',
+      'emoji😀',
+      'slash/id',
+      'tilde~',
+      '_leading_underscore',
+      '-leading-hyphen',
+    ])('rejects an id with disallowed characters %p', (aiIndexId) => {
+      expect(() => validateParams({ aiIndexId })).toThrow(/lowercase letters, numbers, hyphens/);
+    });
 
     it('rejects an empty id', () => {
       expect(() => validateParams({ aiIndexId: '' })).toThrow();
