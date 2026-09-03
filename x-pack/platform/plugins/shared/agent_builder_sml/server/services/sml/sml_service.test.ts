@@ -1862,9 +1862,7 @@ describe('SmlService', () => {
     });
 
     it('denies a malformed count-0 element even to a caller holding the named action', async () => {
-      // The real fail-open: without the `count === 0` guard, `every(held)` would pass for the
-      // action holder and leak the malformed element. This is the sibling of the ES-side
-      // `count > 0` guard on the gated branch.
+      // Without the `count === 0` guard, `every(held)` would pass for the action holder and leak.
       const securityAuthz = createMockSecurityAuthz(['saved_object:dashboard/get']);
       const service = createSmlService();
       service.setup({ logger });
@@ -1939,8 +1937,7 @@ describe('SmlService', () => {
     });
 
     it('denies a malformed positive-count element that names no actions', async () => {
-      // A positive count with an empty name list must fail closed: zero named actions can never
-      // satisfy a positive required count. The nonempty-list guard rejects it outright.
+      // Zero named actions can never satisfy a positive required count.
       const securityAuthz = createMockSecurityAuthz(['saved_object:dashboard/get']);
       const service = createSmlService();
       service.setup({ logger });

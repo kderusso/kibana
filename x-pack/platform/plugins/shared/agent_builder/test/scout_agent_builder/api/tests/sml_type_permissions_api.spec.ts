@@ -93,11 +93,6 @@ const runSmlCrawlerSoon = async (kbnClient: KbnClient, typeId: string): Promise<
   }
 };
 
-// Writes a fixture entry straight into the SML data index at the chosen `count`, overwriting any
-// previous version at the same id. It names the gated action so the gated role is a real registered
-// holder: at `count: 1` that role must see the entry (a positive control proving it is a reachable
-// candidate), and at `count: 0` the entry is malformed — a contradiction the indexer can never
-// produce, since it derives `count` from the action list — and must be hidden from everyone.
 const indexEntryWithCount = async (sysEsClient: Client, count: number): Promise<void> => {
   const document: SmlDocument = {
     id: MALFORMED_ENTRY_ID,
@@ -239,20 +234,15 @@ apiTest.describe(
     apiTest(
       'a count-0 element naming an action is hidden from every caller, though its count-1 form is visible to the holder',
       async ({ apiClient }) => {
-        // The same entry at count 1 must be visible to role holding named action.
         await indexEntryWithCount(sysEsClient, 1);
         const holderAtCountOne = await searchSml(apiClient, gatedTypeCredentials);
         expect(holderAtCountOne).toContain(SML_TEST_MALFORMED_KI_TYPE);
 
-        // Overwrite the same id with malformed count 0 and prove it flips closed for holder
-        // and non-holder.
         await indexEntryWithCount(sysEsClient, 0);
         const holderAtCountZero = await searchSml(apiClient, gatedTypeCredentials);
         expect(holderAtCountZero).not.toContain(SML_TEST_MALFORMED_KI_TYPE);
         const readOnlyAtCountZero = await searchSml(apiClient, smlReadOnlyCredentials);
         expect(readOnlyAtCountZero).not.toContain(SML_TEST_MALFORMED_KI_TYPE);
-
-        // A genuinely public entry still shows, so the guard has not swallowed legitimate docs.
         expect(readOnlyAtCountZero).toContain(SML_TEST_PUBLIC_KI_TYPE);
       }
     );
