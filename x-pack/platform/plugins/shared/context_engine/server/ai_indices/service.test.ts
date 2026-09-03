@@ -455,19 +455,30 @@ describe('AiIndexService', () => {
       );
       expect(storageClient.index).not.toHaveBeenCalled();
     });
+
+    it('rejects a dot-prefixed index dest', async () => {
+      await expect(
+        service.put('logs', {
+          ...indexProperties,
+          dest: { type: 'index', value: '.ai-index-idx-sml-data' },
+        })
+      ).rejects.toBeInstanceOf(InvalidAiIndexDestError);
+      expect(esClient.indices.resolveIndex).not.toHaveBeenCalled();
+      expect(storageClient.index).not.toHaveBeenCalled();
+    });
   });
 
   describe('putManaged', () => {
     const managedProperties = {
       description: 'Elastic managed AI index',
-      dest: { type: 'index' as const, value: 'ai-index-idx-sml-data' },
+      dest: { type: 'index' as const, value: '.ai-index-idx-sml-data' },
       automations: [],
       sources: [],
     };
 
     const mockValidIndexDest = () =>
       esClient.indices.resolveIndex.mockResponse({
-        indices: [{ name: 'ai-index-idx-sml-data', attributes: ['open'] }],
+        indices: [{ name: '.ai-index-idx-sml-data-000001', attributes: ['open'] }],
         aliases: [],
         data_streams: [],
       });
@@ -483,6 +494,17 @@ describe('AiIndexService', () => {
           document: expect.objectContaining({ managed: true }),
         })
       );
+    });
+
+    it('accepts a dot-prefixed index dest', async () => {
+      mockValidIndexDest();
+      storageClient.get.mockRejectedValue(createNotFoundError());
+
+      await expect(service.putManaged('elastic', managedProperties)).resolves.toBe('created');
+      expect(esClient.indices.resolveIndex).toHaveBeenCalledWith({
+        name: '.ai-index-idx-sml-data',
+        expand_wildcards: ['open', 'hidden', 'closed'],
+      });
     });
 
     it('overwrites an existing managed entry (idempotent upsert)', async () => {

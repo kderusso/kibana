@@ -12,6 +12,7 @@ import pRetry from 'p-retry';
 import {
   AI_INDEX_DATA_STREAM_PREFIX as DATA_STREAM_PREFIX,
   AI_INDEX_INDEX_PREFIX as INDEX_PREFIX,
+  MANAGED_AI_INDEX_INDEX_PREFIX as MANAGED_INDEX_PREFIX,
   MAX_AI_INDEX_AUTOMATIONS,
   MAX_AI_INDICES,
 } from '../../common/constants';
@@ -47,6 +48,9 @@ const toAiIndexItem = (id: string, document: AiIndexDocument): AiIndexHttpItem =
 });
 
 const ADD_AUTOMATION_CONFLICT_RETRIES = 2;
+
+const formatPrefixes = (prefixes: string[]): string =>
+  prefixes.map((prefix) => `'${prefix}'`).join(' or ');
 
 type AiIndexAutomationTarget = Pick<AiIndexDocument, 'managed' | 'automations'>;
 
@@ -142,7 +146,7 @@ export class AiIndexService {
     aiIndexId: string,
     properties: AiIndexProperties
   ): Promise<'created' | 'updated'> {
-    await this.assertValidDest(properties.dest);
+    await this.assertValidDest(properties.dest, { managed: true });
     const existing = await this.findDocument(aiIndexId);
     if (existing && !existing.document.managed) {
       throw new AiIndexIdConflictError(aiIndexId);
@@ -345,31 +349,41 @@ export class AiIndexService {
 
   /**
    * The dest value must follow the type-specific naming convention and match
-   * the declared `type`.
+   * the declared `type`. Managed indices may also use the dot-prefixed form.
    */
-  private async assertValidDest({ type, value }: AiIndexDest): Promise<void> {
+  private async assertValidDest(
+    { type, value }: AiIndexDest,
+    { managed = false }: { managed?: boolean } = {}
+  ): Promise<void> {
     if (type === 'data_stream') {
       await this.assertValidDataStreamDest(value);
     } else {
-      await this.assertValidIndexDest(value);
+      await this.assertValidIndexDest(
+        value,
+        managed ? [INDEX_PREFIX, MANAGED_INDEX_PREFIX] : [INDEX_PREFIX]
+      );
     }
   }
 
   /**
-   * Every expression in the dest value must start with the type-specific
-   * prefix.
+   * Every expression in the dest value must start with one of the allowed
+   * prefixes.
    */
-  private assertDestValueHasPrefix(value: string, prefix: string): void {
-    const invalid = value.split(',').find((expression) => !expression.startsWith(prefix));
+  private assertDestValueHasPrefix(value: string, prefixes: string[]): void {
+    const invalid = value
+      .split(',')
+      .find((expression) => !prefixes.some((prefix) => expression.startsWith(prefix)));
     if (invalid !== undefined) {
       throw new InvalidAiIndexDestError(
-        `dest.value '${value}' is not allowed: every expression must start with '${prefix}'`
+        `dest.value '${value}' is not allowed: every expression must start with ${formatPrefixes(
+          prefixes
+        )}`
       );
     }
   }
 
   private async assertValidDataStreamDest(value: string): Promise<void> {
-    this.assertDestValueHasPrefix(value, DATA_STREAM_PREFIX);
+    this.assertDestValueHasPrefix(value, [DATA_STREAM_PREFIX]);
 
     let indices: estypes.IndicesResolveIndexResolveIndexItem[] = [];
     let dataStreams: estypes.IndicesResolveIndexResolveIndexDataStreamsItem[] = [];
@@ -400,8 +414,8 @@ export class AiIndexService {
     }
   }
 
-  private async assertValidIndexDest(value: string): Promise<void> {
-    this.assertDestValueHasPrefix(value, INDEX_PREFIX);
+  private async assertValidIndexDest(value: string, prefixes: string[]): Promise<void> {
+    this.assertDestValueHasPrefix(value, prefixes);
 
     let indices: estypes.IndicesResolveIndexResolveIndexItem[] = [];
     let dataStreams: estypes.IndicesResolveIndexResolveIndexDataStreamsItem[] = [];
@@ -424,10 +438,14 @@ export class AiIndexService {
       );
     }
 
-    const invalidPrefix = indices.find((index) => !index.name.startsWith(INDEX_PREFIX));
+    const invalidPrefix = indices.find(
+      (index) => !prefixes.some((prefix) => index.name.startsWith(prefix))
+    );
     if (invalidPrefix) {
       throw new InvalidAiIndexDestError(
-        `dest.value '${value}' is not allowed: '${invalidPrefix.name}' must start with '${INDEX_PREFIX}'`
+        `dest.value '${value}' is not allowed: '${
+          invalidPrefix.name
+        }' must start with ${formatPrefixes(prefixes)}`
       );
     }
 

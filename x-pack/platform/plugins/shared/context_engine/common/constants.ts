@@ -66,6 +66,8 @@ export const AI_INDEX_INTERNAL_API_VERSION = '1';
 export const AI_INDEX_DEST_PREFIX = 'ai-index-';
 export const AI_INDEX_DATA_STREAM_PREFIX = `${AI_INDEX_DEST_PREFIX}ds-`;
 export const AI_INDEX_INDEX_PREFIX = `${AI_INDEX_DEST_PREFIX}idx-`;
+/** Elastic-managed, space-aware AI indices are dot-prefixed to mark them as Elastic-owned. */
+export const MANAGED_AI_INDEX_INDEX_PREFIX = `.${AI_INDEX_INDEX_PREFIX}`;
 
 /**
  * Hard limit on the number of AI indices returned by the list API.

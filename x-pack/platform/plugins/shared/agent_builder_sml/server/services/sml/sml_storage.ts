@@ -10,7 +10,7 @@ import type { IndexStorageSettings } from '@kbn/storage-adapter';
 import { StorageIndexAdapter, types } from '@kbn/storage-adapter';
 import type { SmlDocument } from './types';
 
-export const smlIndexName = 'ai-index-idx-sml-data';
+export const smlIndexName = '.ai-index-idx-sml-data';
 
 /**
  * Plain description of what this index holds. Shared by the Context Engine AI index registration
@@ -81,10 +81,6 @@ const smlStorageSchemaProperties = {
 
 export const storageSettings = {
   name: smlIndexName,
-  /**
-   * Ensure the SML backing index name has a higher priority than built-in AI index templates.
-   */
-  priority: 600,
   schema: {
     properties: smlStorageSchemaProperties,
   },
